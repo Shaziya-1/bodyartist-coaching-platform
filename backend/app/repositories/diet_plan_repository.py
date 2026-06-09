@@ -1,4 +1,4 @@
-from app.models.diet_plan_model import DietPlan
+from backend.app.models.diet_plan_model import DietPlan
 
 
 class DietPlanRepository:

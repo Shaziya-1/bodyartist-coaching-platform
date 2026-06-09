@@ -1,9 +1,10 @@
+import uuid
+
 from sqlalchemy import Column, Integer, Float, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
-import uuid
 
-from app.config.database import Base
+from backend.app.config.database import Base
 
 
 class DietPlan(Base):
@@ -34,7 +35,10 @@ class DietPlan(Base):
 
     macro_tolerance_percent = Column(Float, default=10.0)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
 
     updated_at = Column(
         DateTime(timezone=True),
