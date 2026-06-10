@@ -4,7 +4,10 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+if os.path.exists("backend/.env"):
+    load_dotenv("backend/.env")
+else:
+    load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -22,9 +25,10 @@ Base = declarative_base()
 def get_db():
     db = SessionLocal()
     try:
-        yield db  # generator 
+        return db
     except Exception as e:
         print("DB FAILED ", e)
+        raise e
     finally:
         db.close()
 

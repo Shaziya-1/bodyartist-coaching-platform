@@ -1,0 +1,117 @@
+from sqlalchemy.orm import Session
+from fastapi import HTTPException, status
+from backend.app.repositories.user_repository import UserRepository
+from backend.app.utils.security import (
+    get_password_hash,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    verify_token
+)
+
+class AuthController:
+    @staticmethod
+    def coach_signup(db: Session, name: str, email: str, password: str, invite_code: str):
+        if invite_code != "ARTIST2026":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid Coach Invite Code. Registration restricted."
+            )
+        
+        # Check if email exists
+        existing_user = UserRepository.get_by_email(db, email)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email address already registered."
+            )
+        
+        # Create user
+        hashed_password = get_password_hash(password)
+        user = UserRepository.create_user(
+            db=db,
+            name=name,
+            email=email,
+            role="coach",
+            password_hash=hashed_password
+        )
+        
+        # Generate tokens
+        user_data = {"sub": str(user.id), "email": user.email, "role": user.role}
+        access_token = create_access_token(user_data)
+        refresh_token = create_refresh_token(user_data)
+        
+        return {
+            "id": str(user.id),
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "accessToken": access_token,
+            "refreshToken": refresh_token
+        }
+
+    @staticmethod
+    def signin(db: Session, email: str, password: str, expected_role: str):
+        user = UserRepository.get_by_email(db, email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password."
+            )
+        
+        if user.role != expected_role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. User role mismatch."
+            )
+        
+        if not verify_password(password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password."
+            )
+        
+        # Generate tokens
+        user_data = {"sub": str(user.id), "email": user.email, "role": user.role}
+        access_token = create_access_token(user_data)
+        refresh_token = create_refresh_token(user_data)
+        
+        return {
+            "id": str(user.id),
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "accessToken": access_token,
+            "refreshToken": refresh_token
+        }
+
+    @staticmethod
+    def refresh_token(db: Session, refresh_token: str):
+        payload = verify_token(refresh_token)
+        if not payload or payload.get("type") != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired refresh token."
+            )
+        
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload."
+            )
+            
+        user = UserRepository.get_by_id(db, user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found."
+            )
+            
+        # Issue new access token
+        user_data = {"sub": str(user.id), "email": user.email, "role": user.role}
+        access_token = create_access_token(user_data)
+        
+        return {
+            "accessToken": access_token
+        }

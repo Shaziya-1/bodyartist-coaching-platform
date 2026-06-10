@@ -1,1 +1,117 @@
 @import "tailwindcss";
+
+@theme {
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  
+  --color-status-green: hsl(var(--status-green));
+  --color-status-yellow: hsl(var(--status-yellow));
+  --color-status-orange: hsl(var(--status-orange));
+  --color-status-red: hsl(var(--status-red));
+}
+
+:root {
+  /* Default: Dark Theme */
+  --background: 224 71% 4%;
+  --foreground: 213 31% 91%;
+  
+  --card: 224 71% 7%;
+  --card-foreground: 213 31% 95%;
+  --card-border: 224 50% 12%;
+  
+  --primary: 263 90% 50%;
+  --primary-foreground: 210 40% 98%;
+  
+  --muted: 223 47% 11%;
+  --muted-foreground: 215.4 16.3% 56.9%;
+  
+  --accent: 216 34% 17%;
+  --accent-foreground: 210 40% 98%;
+
+  --status-green: 142 70% 45%;
+  --status-yellow: 47 95% 50%;
+  --status-orange: 24 95% 50%;
+  --status-red: 0 84% 55%;
+
+  --glass-bg: rgba(7, 10, 22, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+.light {
+  /* Light Theme */
+  --background: 210 40% 98%;
+  --foreground: 224 71% 4%;
+  
+  --card: 0 0% 100%;
+  --card-foreground: 224 71% 10%;
+  --card-border: 220 14% 88%;
+  
+  --primary: 263 90% 45%;
+  --primary-foreground: 210 40% 98%;
+  
+  --muted: 220 14% 92%;
+  --muted-foreground: 220 8% 46%;
+  
+  --accent: 220 14% 90%;
+  --accent-foreground: 224 71% 10%;
+
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(0, 0, 0, 0.08);
+}
+
+/* Custom Base Layer Transitions */
+body {
+  @apply bg-background text-foreground transition-colors duration-300 ease-out min-h-screen font-sans;
+}
+
+/* Custom Utilities for Premium Look */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+}
+
+.glow-effect {
+  position: relative;
+}
+
+.glow-effect::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--status-yellow)), hsl(var(--primary)));
+  border-radius: inherit;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.glow-effect:hover::before {
+  opacity: 0.15;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
