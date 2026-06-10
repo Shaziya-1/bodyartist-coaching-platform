@@ -12,6 +12,7 @@ class User(Base):
     name = Column(String(255), nullable=False)
     email = Column(String(255), unique=True, nullable=False)
     role = Column(String(50), nullable=False)  # 'coach' ya 'athlete'
+    password_hash = Column(String(255), nullable=False)
     
     # Self-referencing foreign key: Athlete ke row mein coach ki ID store hogi
     coach_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

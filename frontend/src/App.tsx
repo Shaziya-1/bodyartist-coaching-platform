@@ -1,13 +1,926 @@
-import './App.css'
+import React, { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import './App.css';
+import { ThemeProvider } from './context/ThemeContext';
+import { ThemeToggle } from './components/ThemeToggle';
+import { HomePortal } from './pages/HomePortal';
+import { CoachAuth } from './pages/CoachAuth';
+import { AthleteAuth } from './pages/AthleteAuth';
+import { ConsentModal } from './components/ConsentModal';
+import { LogOut, Activity, Camera, ArrowLeft } from 'lucide-react';
+import { useAuthStore } from './store/useAuthStore';
 
-function App() {
-  return (
-    <>
-      <h1 className='bg-red-200 p-10'>
-        Ndk (Testing Tailwind)
-      </h1>
-    </>
-  )
+// Types for Mock Database
+interface Athlete {
+  id: string;
+  name: string;
+  email: string;
+  score: number;
+  streak: number;
+  weight: number;
+  waterLog: number;
+  waterTarget: number;
+  mealsLogged: number;
+  mealsTarget: number;
+  supplements: { name: string; completed: boolean; required: boolean }[];
+  status: 'green' | 'yellow' | 'orange' | 'red';
+  mealHistory: { id: string; time: string; food: string; calories: number; macros: { p: number; c: number; f: number }; photo: string }[];
 }
 
-export default App
+function MainApp() {
+  const navigate = useNavigate();
+  
+  const role = useAuthStore((state) => state.role);
+  const storeName = useAuthStore((state) => state.name);
+  const storeEmail = useAuthStore((state) => state.email);
+  const user = storeName && storeEmail ? { name: storeName, email: storeEmail } : null;
+
+  const [showConsentModal, setShowConsentModal] = useState<boolean>(false);
+
+  // Athletes database list
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
+
+  // Query roster athletes from backend
+  React.useEffect(() => {
+    if (role === 'coach') {
+      const coachId = useAuthStore.getState().id;
+      if (coachId) {
+        fetch(`http://localhost:8000/api/auth/coach/athletes?coach_id=${coachId}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (Array.isArray(data)) {
+              setAthletes(data);
+            }
+          })
+          .catch((err) => console.error("Failed to fetch roster:", err));
+      }
+    }
+  }, [role]);
+
+  // Selected Athlete for drill-down view
+  const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null);
+
+  // New Athlete Provisioning State
+  const [provName, setProvName] = useState('');
+  const [provEmail, setProvEmail] = useState('');
+  const [provPassword, setProvPassword] = useState('');
+  const [provMeals, setProvMeals] = useState(5);
+  const [provWeight, setProvWeight] = useState(80);
+  const [provSuccess, setProvSuccess] = useState(false);
+  const [lastProvisioned, setLastProvisioned] = useState<{ email: string; pass: string } | null>(null);
+
+  // Reset password states
+  const [resetPasswordVal, setResetPasswordVal] = useState('');
+  const [resetSuccessMsg, setResetSuccessMsg] = useState('');
+
+  // Athlete Dashboard Logging States
+  const [athleteWater, setAthleteWater] = useState(0);
+  const [athleteSupps, setAthleteSupps] = useState<{ name: string; completed: boolean }[]>([
+    { name: 'Creatine Monohydrate', completed: false },
+    { name: 'Omega 3 Fish Oil', completed: false },
+    { name: 'Multivitamin Formula', completed: false },
+  ]);
+  const [athleteMeals, setAthleteMeals] = useState<any[]>([]);
+  
+  // Vision Simulation States
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [visionEstimate, setVisionEstimate] = useState<any | null>(null);
+  const [portionScale, setPortionScale] = useState(100); // percentage
+
+  const handleLoginSuccess = (userRole: string, loggedUser: { name: string; email: string }) => {
+    if (userRole === 'athlete') {
+      const accepted = localStorage.getItem(`consent-${loggedUser.email}`);
+      if (accepted === 'true') {
+        navigate('/athlete/dashboard');
+      } else {
+        setShowConsentModal(true);
+      }
+    }
+  };
+
+  const handleConsentAccept = () => {
+    if (user) {
+      localStorage.setItem(`consent-${user.email}`, 'true');
+    }
+    setShowConsentModal(false);
+    navigate('/athlete/dashboard');
+  };
+
+  const handleConsentDecline = () => {
+    useAuthStore.getState().clearAuth();
+    setShowConsentModal(false);
+    navigate('/');
+  };
+
+  const handleLogout = () => {
+    useAuthStore.getState().clearAuth();
+    setSelectedAthlete(null);
+    navigate('/');
+  };
+
+  // Athlete Provision Handler
+  const handleProvisionAthlete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!provName || !provEmail || !provPassword) return;
+
+    try {
+      const coachId = useAuthStore.getState().id;
+      if (!coachId) {
+        alert('Coach ID not found. Please sign in again.');
+        return;
+      }
+
+      const res = await fetch('http://localhost:8000/api/auth/athlete/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: provName,
+          email: provEmail,
+          password: provPassword,
+          coachId: coachId
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || 'Failed to provision athlete.');
+        return;
+      }
+
+      const newAthlete: Athlete = {
+        id: data.id,
+        name: provName,
+        email: provEmail,
+        score: 0,
+        streak: 0,
+        weight: provWeight,
+        waterLog: 0,
+        waterTarget: 8,
+        mealsLogged: 0,
+        mealsTarget: provMeals,
+        status: 'red',
+        supplements: [
+          { name: 'Creatine Monohydrate', completed: false, required: true },
+          { name: 'Omega 3 Fish Oil', completed: false, required: true },
+          { name: 'Multivitamin Formula', completed: false, required: true },
+        ],
+        mealHistory: []
+      };
+
+      setLastProvisioned({ email: provEmail, pass: provPassword });
+      setAthletes((prev) => [newAthlete, ...prev]);
+      setProvSuccess(true);
+      setProvName('');
+      setProvEmail('');
+      setProvPassword('');
+    } catch (err: any) {
+      alert(err.message || 'An error occurred during athlete provisioning.');
+    }
+  };
+
+  const handleResetAthletePassword = async (athleteId: string) => {
+    if (!resetPasswordVal) return;
+    try {
+      const res = await fetch('http://localhost:8000/api/auth/athlete/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          athleteId,
+          newPassword: resetPasswordVal
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || 'Failed to reset password.');
+        return;
+      }
+      setResetSuccessMsg('Password reset successfully!');
+      setResetPasswordVal('');
+      setTimeout(() => setResetSuccessMsg(''), 3000);
+    } catch (err: any) {
+      alert(err.message || 'An error occurred during password reset.');
+    }
+  };
+
+  // Simulate Food Recognition API Upload
+  const handleSimulateVisionAPI = (foodItem: string) => {
+    setUploadingImage(true);
+    setVisionEstimate(null);
+
+    setTimeout(() => {
+      setUploadingImage(false);
+      let macros = { p: 25, c: 45, f: 6, cal: 334 };
+      let microEstimates = { b12: '0.8 mcg (Confidence: High)', iron: '1.8 mg (Confidence: Medium)', potassium: '380 mg (Confidence: Low)' };
+
+      if (foodItem === 'chicken') {
+        macros = { p: 48, c: 62, f: 9, cal: 520 };
+        microEstimates = { b12: '1.4 mcg (Confidence: High)', iron: '2.8 mg (Confidence: High)', potassium: '480 mg (Confidence: High)' };
+      } else if (foodItem === 'shake') {
+        macros = { p: 30, c: 6, f: 2, cal: 162 };
+        microEstimates = { b12: '0.5 mcg (Confidence: Medium)', iron: '0.1 mg (Confidence: Low)', potassium: '120 mg (Confidence: Medium)' };
+      }
+
+      setVisionEstimate({
+        foodName: foodItem === 'chicken' ? 'Grilled Chicken Breast & Rice Plate' : 'Whey Protein Oat Smoothie',
+        originalMacros: macros,
+        originalMicros: microEstimates,
+        photoSymbol: foodItem === 'chicken' ? '🍗' : '🥤'
+      });
+      setPortionScale(100);
+    }, 1500);
+  };
+
+  // Commit Meal to Athlete database log
+  const handleCommitMeal = () => {
+    if (!visionEstimate) return;
+
+    const scale = portionScale / 100;
+    const finalCalories = Math.round(visionEstimate.originalMacros.cal * scale);
+    const finalProtein = Math.round(visionEstimate.originalMacros.p * scale);
+    const finalCarbs = Math.round(visionEstimate.originalMacros.c * scale);
+    const finalFat = Math.round(visionEstimate.originalMacros.f * scale);
+
+    const loggedMeal = {
+      id: `m-ath-${Date.now()}`,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      food: visionEstimate.foodName,
+      calories: finalCalories,
+      macros: { p: finalProtein, c: finalCarbs, f: finalFat },
+      photo: visionEstimate.photoSymbol
+    };
+
+    setAthleteMeals((prev) => [loggedMeal, ...prev]);
+    setVisionEstimate(null);
+  };
+
+  // Dynamic Athlete Adherence Score Calculation
+  const calculateAthleteScore = () => {
+    const totalMealsTarget = 5;
+    const waterTargetVal = 8;
+    const loggedCount = athleteMeals.length;
+    const waterVal = athleteWater;
+
+    const mealScore = Math.min((loggedCount / totalMealsTarget) * 50, 50); // 50%
+    const waterScore = Math.min((waterVal / waterTargetVal) * 15, 15); // 15%
+    
+    const requiredSupps = athleteSupps.length;
+    const completedSupps = athleteSupps.filter(s => s.completed).length;
+    const suppsScore = requiredSupps > 0 ? (completedSupps / requiredSupps) * 20 : 20; // 20%
+
+    // Mock Steps & Exercise: Defaulting to 15% completion
+    const exerciseScore = 15;
+
+    const totalScore = Math.round(mealScore + waterScore + suppsScore + exerciseScore);
+    return Math.min(totalScore, 100);
+  };
+
+  const runningScore = calculateAthleteScore();
+  const getAdherenceStatusColor = (scoreValue: number) => {
+    if (scoreValue >= 85) return 'emerald';
+    if (scoreValue >= 70) return 'amber';
+    if (scoreValue >= 50) return 'orange';
+    return 'rose';
+  };
+
+  return (
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
+      <ThemeToggle />
+
+      <Routes>
+        <Route path="/" element={<HomePortal />} />
+        <Route path="/coach/signin" element={<CoachAuth isSignUp={false} onLoginSuccess={handleLoginSuccess} />} />
+        <Route path="/coach/signup" element={<CoachAuth isSignUp={true} onLoginSuccess={handleLoginSuccess} />} />
+        <Route path="/athlete/signin" element={<AthleteAuth onLoginSuccess={handleLoginSuccess} />} />
+        
+        {/* Coach Dashboard Component */}
+        <Route 
+          path="/coach/dashboard" 
+          element={
+            role === 'coach' ? (
+              <div className="min-h-screen px-6 py-8 md:px-12 max-w-7xl mx-auto animate-fade-in">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-card-border pb-6 mb-8 gap-4">
+                  <div className="flex items-center gap-3">
+                    <Activity className="w-8 h-8 text-primary" />
+                    <div>
+                      <h1 className="text-3xl font-black tracking-tight">Coach Portal</h1>
+                      <p className="text-xs text-muted-foreground">Logged in as {user?.email}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="py-2.5 px-5 text-sm font-semibold rounded-xl bg-card border border-card-border hover:bg-accent/40 text-foreground transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-primary outline-none"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+
+                {selectedAthlete ? (
+                  /* ATHLETE DRILL-DOWN HISTORICAL VIEW */
+                  <div className="space-y-8 animate-fade-in">
+                    <button
+                      onClick={() => setSelectedAthlete(null)}
+                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground font-semibold cursor-pointer focus-visible:ring-2 focus-visible:ring-primary outline-none rounded p-1"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>Back to Athlete Grid</span>
+                    </button>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                      {/* Left Card: Summary */}
+                      <div className="glass-panel p-8 rounded-3xl space-y-6">
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-2xl font-bold">
+                            {selectedAthlete.name.charAt(0)}
+                          </div>
+                          <div>
+                            <h2 className="text-2xl font-black">{selectedAthlete.name}</h2>
+                            <p className="text-xs text-muted-foreground">{selectedAthlete.email}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 border-t border-card-border pt-6">
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold block">Daily Score</span>
+                            <span className={`text-3xl font-extrabold text-${getAdherenceStatusColor(selectedAthlete.score)}-500`}>
+                              {selectedAthlete.score}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold block">Current Streak</span>
+                            <span className="text-3xl font-extrabold text-foreground">{selectedAthlete.streak} days</span>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-card-border pt-6 space-y-4">
+                          <h4 className="text-xs font-extrabold uppercase tracking-widest text-muted-foreground">Today's Progress</h4>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Hydration</span>
+                            <span className="font-semibold text-foreground">{selectedAthlete.waterLog} / {selectedAthlete.waterTarget} glasses</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Meals Tracked</span>
+                            <span className="font-semibold text-foreground">{selectedAthlete.mealsLogged} / {selectedAthlete.mealsTarget} completed</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Body Weight</span>
+                            <span className="font-semibold text-foreground">{selectedAthlete.weight} kg</span>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-card-border pt-6 space-y-4">
+                          <h4 className="text-xs font-extrabold uppercase tracking-widest text-muted-foreground">Security Settings</h4>
+                          {resetSuccessMsg && (
+                            <div className="p-3 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                              {resetSuccessMsg}
+                            </div>
+                          )}
+                          <div className="space-y-2">
+                            <label className="text-[10px] text-muted-foreground uppercase font-bold block">New Password</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="password"
+                                value={resetPasswordVal}
+                                onChange={(e) => setResetPasswordVal(e.target.value)}
+                                placeholder="Enter new password…"
+                                className="flex-1 py-2 px-3 rounded-xl bg-card border border-card-border text-xs outline-none focus:border-primary/50 text-foreground"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleResetAthletePassword(selectedAthlete.id)}
+                                className="py-2 px-3 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/95 transition-all cursor-pointer"
+                              >
+                                Reset
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right Card: Meal Feed */}
+                      <div className="lg:col-span-2 glass-panel p-8 rounded-3xl">
+                        <h3 className="text-xl font-bold mb-6">Today's Logged Meals</h3>
+                        {selectedAthlete.mealHistory.length > 0 ? (
+                          <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                            {selectedAthlete.mealHistory.map((m) => (
+                              <div key={m.id} className="p-4 rounded-2xl bg-card/40 border border-card-border flex items-center justify-between hover:border-card-border/80 transition-colors">
+                                <div className="flex items-center gap-4">
+                                  <span className="text-3xl p-3 bg-card rounded-xl border border-card-border">{m.photo}</span>
+                                  <div>
+                                    <h4 className="font-bold text-foreground text-sm">{m.food}</h4>
+                                    <p className="text-[10px] text-muted-foreground">{m.time} • {m.calories} kcal</p>
+                                  </div>
+                                </div>
+                                <div className="flex gap-4 text-xs font-semibold text-muted-foreground text-right">
+                                  <div>
+                                    <span className="block text-[10px] text-muted-foreground uppercase font-bold">Prot</span>
+                                    <span className="text-foreground">{m.macros.p}g</span>
+                                  </div>
+                                  <div>
+                                    <span className="block text-[10px] text-muted-foreground uppercase font-bold">Carbs</span>
+                                    <span className="text-foreground">{m.macros.c}g</span>
+                                  </div>
+                                  <div>
+                                    <span className="block text-[10px] text-muted-foreground uppercase font-bold">Fat</span>
+                                    <span className="text-foreground">{m.macros.f}g</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-12 text-sm text-muted-foreground">
+                            No meals logged yet today.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Heatmap */}
+                    <div className="glass-panel p-8 rounded-3xl">
+                      <h3 className="text-xl font-bold mb-2">Consistency Heatmap</h3>
+                      <p className="text-xs text-muted-foreground mb-6">Day-by-day adherence tracker. Cells shift from green (good compliance) to red (missed checklist tasks).</p>
+                      <div className="flex flex-wrap gap-1.5 p-4 bg-card/30 border border-card-border rounded-2xl max-w-full overflow-x-auto">
+                        {Array.from({ length: 52 }).map((_, idx) => {
+                          let cellVal = 95;
+                          if (idx % 7 === 0) cellVal = 40;
+                          else if (idx % 5 === 0) cellVal = 65;
+                          else if (idx % 3 === 0) cellVal = 80;
+
+                          return (
+                            <div
+                              key={idx}
+                              className={`w-6 h-6 rounded-md transition-colors cursor-help border border-slate-900/50 hover:scale-110 duration-200
+                                ${cellVal >= 85 ? 'bg-emerald-500' : ''}
+                                ${cellVal >= 70 && cellVal < 85 ? 'bg-amber-500' : ''}
+                                ${cellVal >= 50 && cellVal < 70 ? 'bg-orange-500' : ''}
+                                ${cellVal < 50 ? 'bg-rose-500' : ''}
+                              `}
+                              title={`Day ${idx + 1}: Compliance Score ${cellVal}%`}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* ATHLETE LIST GRID & PROVISIONING PANEL */
+                  <div className="space-y-12 animate-fade-in">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                      
+                      {/* Athletes Grid List */}
+                      <div className="lg:col-span-2 space-y-6">
+                        <h3 className="text-xl font-bold">Current Athletes</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {athletes.map((a) => (
+                            <div
+                              key={a.id}
+                              onClick={() => setSelectedAthlete(a)}
+                              className={`glass-panel p-6 rounded-3xl cursor-pointer hover:border-primary/20 transition-all hover:scale-[1.02] duration-300 flex flex-col justify-between relative overflow-hidden group
+                                ${a.status === 'red' ? 'border-l-4 border-l-rose-500' : ''}
+                                ${a.status === 'orange' ? 'border-l-4 border-l-orange-500' : ''}
+                              `}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <h4 className="text-lg font-bold group-hover:text-primary transition-colors">{a.name}</h4>
+                                  <p className="text-xs text-muted-foreground">{a.email}</p>
+                                </div>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] uppercase font-bold
+                                  ${a.status === 'green' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : ''}
+                                  ${a.status === 'yellow' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : ''}
+                                  ${a.status === 'orange' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : ''}
+                                  ${a.status === 'red' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : ''}
+                                `}>
+                                  {a.status}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-2 mt-6 border-t border-card-border pt-4 text-center">
+                                <div>
+                                  <span className="block text-[9px] text-muted-foreground uppercase tracking-wider font-bold">Score</span>
+                                  <span className="text-lg font-black">{a.score}</span>
+                                </div>
+                                <div>
+                                  <span className="block text-[9px] text-muted-foreground uppercase tracking-wider font-bold">Streak</span>
+                                  <span className="text-lg font-black">{a.streak}d</span>
+                                </div>
+                                <div>
+                                  <span className="block text-[9px] text-muted-foreground uppercase tracking-wider font-bold">Weight</span>
+                                  <span className="text-lg font-black">{a.weight}kg</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Provisioning Form Panel */}
+                      <div className="glass-panel p-8 rounded-3xl h-fit">
+                        <h3 className="text-xl font-bold mb-2">Provision Athlete</h3>
+                        <p className="text-xs text-muted-foreground mb-6">Register a new client roster profile. Access links will be generated automatically.</p>
+                        
+                        {provSuccess && lastProvisioned && (
+                          <div className="mb-6 p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs space-y-3 animate-fade-in relative">
+                            <h4 className="font-bold text-sm">Roster Athlete Provisioned!</h4>
+                            <p className="text-muted-foreground leading-relaxed">
+                              Share these credentials with the athlete:
+                            </p>
+                            <div className="p-3 bg-card/60 rounded-xl border border-card-border font-mono text-[11px] select-all space-y-1 text-foreground">
+                              <div><strong>Email:</strong> {lastProvisioned.email}</div>
+                              <div><strong>Password:</strong> {lastProvisioned.pass}</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(`Email: ${lastProvisioned.email}\nPassword: ${lastProvisioned.pass}`);
+                                alert("Credentials copied to clipboard!");
+                              }}
+                              className="w-full py-2 bg-emerald-500 text-slate-950 font-bold hover:bg-emerald-400 rounded-xl transition-all cursor-pointer text-center"
+                            >
+                              Copy Credentials
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProvSuccess(false);
+                                setLastProvisioned(null);
+                              }}
+                              className="absolute top-2 right-3 text-muted-foreground hover:text-foreground font-bold text-sm cursor-pointer"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )}
+
+                        <form onSubmit={handleProvisionAthlete} className="space-y-4">
+                          <div className="space-y-1">
+                            <label htmlFor="p-name" className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Name</label>
+                            <input
+                              type="text"
+                              id="p-name"
+                              value={provName}
+                              onChange={(e) => setProvName(e.target.value)}
+                              placeholder="e.g., Client Name…"
+                              className="w-full py-2.5 px-4 rounded-xl bg-card border border-card-border focus:border-primary/50 outline-none text-sm focus:ring-1 focus:ring-primary/20"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label htmlFor="p-email" className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Email</label>
+                            <input
+                              type="email"
+                              id="p-email"
+                              value={provEmail}
+                              onChange={(e) => setProvEmail(e.target.value)}
+                              placeholder="e.g., client@athlete.com…"
+                              className="w-full py-2.5 px-4 rounded-xl bg-card border border-card-border focus:border-primary/50 outline-none text-sm focus:ring-1 focus:ring-primary/20"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label htmlFor="p-password" className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Password</label>
+                            <input
+                              type="password"
+                              id="p-password"
+                              value={provPassword}
+                              onChange={(e) => setProvPassword(e.target.value)}
+                              placeholder="Choose password…"
+                              className="w-full py-2.5 px-4 rounded-xl bg-card border border-card-border focus:border-primary/50 outline-none text-sm focus:ring-1 focus:ring-primary/20"
+                              required
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                              <label htmlFor="p-meals" className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Target Meals</label>
+                              <input
+                                type="number"
+                                id="p-meals"
+                                value={provMeals}
+                                onChange={(e) => setProvMeals(parseInt(e.target.value))}
+                                className="w-full py-2.5 px-4 rounded-xl bg-card border border-card-border focus:border-primary/50 outline-none text-sm focus:ring-1 focus:ring-primary/20"
+                                min="1"
+                                max="10"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label htmlFor="p-weight" className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Weight (kg)</label>
+                              <input
+                                type="number"
+                                id="p-weight"
+                                value={provWeight}
+                                onChange={(e) => setProvWeight(parseFloat(e.target.value))}
+                                className="w-full py-2.5 px-4 rounded-xl bg-card border border-card-border focus:border-primary/50 outline-none text-sm focus:ring-1 focus:ring-primary/20"
+                              />
+                            </div>
+                          </div>
+                          <button
+                            type="submit"
+                            className="w-full py-3.5 mt-4 rounded-2xl bg-primary text-primary-foreground font-semibold hover:bg-primary/95 transition-all duration-300 cursor-pointer"
+                          >
+                            Provision Credentials
+                          </button>
+                        </form>
+                      </div>
+
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Navigate to="/coach/signin" replace />
+            )
+          } 
+        />
+        
+        {/* Athlete Dashboard Component */}
+        <Route 
+          path="/athlete/dashboard" 
+          element={
+            role === 'athlete' ? (
+              <div className="min-h-screen px-6 py-8 md:px-12 max-w-4xl mx-auto animate-fade-in">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-card-border pb-6 mb-8 gap-4">
+                  <div>
+                    <span className="text-xs uppercase tracking-widest text-status-orange font-bold">Athlete Telemetry</span>
+                    <h1 className="text-3xl font-black mt-2 tracking-tight">Welcome, {user?.name || 'Enhanced Athlete'}</h1>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="py-2.5 px-5 text-sm font-semibold rounded-xl bg-card border border-card-border hover:bg-accent/40 text-foreground transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-status-orange outline-none"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  {/* Left Column */}
+                  <div className="md:col-span-1 space-y-6">
+                    {/* Score */}
+                    <div className="glass-panel p-6 rounded-3xl text-center space-y-3">
+                      <h3 className="text-sm uppercase tracking-widest text-muted-foreground font-bold">Today's Score</h3>
+                      <div className="relative inline-flex items-center justify-center p-2 rounded-full border border-card-border bg-card/30">
+                        <span className={`text-5xl font-black text-${getAdherenceStatusColor(runningScore)}-500`}>
+                          {runningScore}
+                        </span>
+                      </div>
+                      <span className="block text-xs font-semibold text-muted-foreground">Adherence rating is {getAdherenceStatusColor(runningScore)}</span>
+                    </div>
+
+                    {/* Hydration */}
+                    <div className="glass-panel p-6 rounded-3xl space-y-4">
+                      <h3 className="text-sm font-bold text-foreground">Hydration Intake</h3>
+                      <div className="flex justify-between items-center text-xs text-muted-foreground font-semibold">
+                        <span>Target: 8 glasses</span>
+                        <span className="text-foreground">{athleteWater} / 8 glasses</span>
+                      </div>
+                      <div className="grid grid-cols-8 gap-1">
+                        {Array.from({ length: 8 }).map((_, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => setAthleteWater((prev) => (idx < prev ? idx : idx + 1))}
+                            className={`h-8 rounded-md border cursor-pointer transition-all hover:scale-105 duration-200
+                              ${idx < athleteWater 
+                                ? 'bg-sky-500 border-sky-400 shadow-md shadow-sky-500/20' 
+                                : 'bg-card border-card-border hover:border-sky-500/30'}
+                            `}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setAthleteWater((prev) => Math.max(prev - 1, 0))}
+                          className="flex-1 py-2 rounded-xl bg-card border border-card-border text-xs font-semibold hover:bg-accent/40 cursor-pointer"
+                        >
+                          Remove Glass
+                        </button>
+                        <button
+                          onClick={() => setAthleteWater((prev) => Math.min(prev + 1, 8))}
+                          className="flex-1 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+                        >
+                          Add Glass
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Supplements */}
+                    <div className="glass-panel p-6 rounded-3xl space-y-4">
+                      <h3 className="text-sm font-bold text-foreground">Supplements Log</h3>
+                      <div className="space-y-3">
+                        {athleteSupps.map((s, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              const updated = [...athleteSupps];
+                              updated[idx].completed = !updated[idx].completed;
+                              setAthleteSupps(updated);
+                            }}
+                            className="flex items-center gap-3 p-3 bg-card border border-card-border rounded-xl cursor-pointer hover:border-card-border/80 transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={s.completed}
+                              readOnly
+                              className="w-4 h-4 rounded border-card-border text-primary cursor-pointer"
+                            />
+                            <span className="text-xs font-medium">{s.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: AI Photo Log */}
+                  <div className="md:col-span-2 space-y-6">
+                    <div className="glass-panel p-8 rounded-3xl space-y-6">
+                      <h3 className="text-lg font-bold">Meal Adherence Log</h3>
+                      
+                      {visionEstimate ? (
+                        <div className="space-y-6 animate-fade-in">
+                          <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20 flex gap-4">
+                            <span className="text-4xl p-3 bg-card rounded-xl border border-card-border">{visionEstimate.photoSymbol}</span>
+                            <div className="flex-1">
+                              <h4 className="font-bold text-sm">{visionEstimate.foodName}</h4>
+                              <span className="text-[10px] font-semibold text-status-orange bg-status-orange/10 border border-status-orange/20 px-2 py-0.5 rounded-full">
+                                AI Estimate Detected
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3 p-4 bg-card rounded-2xl border border-card-border">
+                            <div className="flex justify-between items-center text-xs font-bold">
+                              <span className="text-muted-foreground">Adjust Portion Size</span>
+                              <span className="text-foreground">{portionScale}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="50"
+                              max="200"
+                              step="10"
+                              value={portionScale}
+                              onChange={(e) => setPortionScale(parseInt(e.target.value))}
+                              className="w-full h-1 bg-card-border rounded-lg appearance-none cursor-pointer accent-primary"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-2">
+                            <div className="p-3 bg-card/30 border border-card-border rounded-xl text-center">
+                              <span className="block text-[10px] text-muted-foreground uppercase font-bold">Protein</span>
+                              <span className="text-base font-extrabold text-foreground">
+                                {Math.round(visionEstimate.originalMacros.p * (portionScale / 100))}g
+                              </span>
+                            </div>
+                            <div className="p-3 bg-card/30 border border-card-border rounded-xl text-center">
+                              <span className="block text-[10px] text-muted-foreground uppercase font-bold">Carbs</span>
+                              <span className="text-base font-extrabold text-foreground">
+                                {Math.round(visionEstimate.originalMacros.c * (portionScale / 100))}g
+                              </span>
+                            </div>
+                            <div className="p-3 bg-card/30 border border-card-border rounded-xl text-center">
+                              <span className="block text-[10px] text-muted-foreground uppercase font-bold">Fats</span>
+                              <span className="text-base font-extrabold text-foreground">
+                                {Math.round(visionEstimate.originalMacros.f * (portionScale / 100))}g
+                              </span>
+                            </div>
+                            <div className="p-3 bg-card/30 border border-card-border rounded-xl text-center">
+                              <span className="block text-[10px] text-muted-foreground uppercase font-bold">Calories</span>
+                              <span className="text-base font-extrabold text-foreground text-primary">
+                                {Math.round(visionEstimate.originalMacros.cal * (portionScale / 100))} kcal
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="p-4 bg-card/40 border border-card-border rounded-2xl space-y-2.5">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Micronutrients (Directional Estimates)</h4>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Vitamin B12</span>
+                              <span className="text-foreground">{visionEstimate.originalMicros.b12}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Iron</span>
+                              <span className="text-foreground">{visionEstimate.originalMicros.iron}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Potassium</span>
+                              <span className="text-foreground">{visionEstimate.originalMicros.potassium}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-4">
+                            <button
+                              onClick={() => setVisionEstimate(null)}
+                              className="flex-1 py-3.5 rounded-2xl bg-card border border-card-border hover:bg-accent/40 text-foreground font-semibold cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleCommitMeal}
+                              className="flex-1 py-3.5 rounded-2xl bg-status-orange text-white hover:bg-status-orange/95 font-semibold shadow-md shadow-status-orange/20 cursor-pointer"
+                            >
+                              Confirm & Log Meal
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Upload a photo of your dish. Our integrated computer vision pipeline (LogMeal) will analyze ingredients and estimate calorie values.
+                          </p>
+
+                          {uploadingImage ? (
+                            <div className="border-2 border-dashed border-card-border p-12 rounded-2xl text-center space-y-4 bg-card/10 flex flex-col justify-center items-center">
+                              <div className="w-10 h-10 border-2 border-t-transparent border-primary rounded-full animate-spin" />
+                              <span className="text-sm font-semibold text-muted-foreground">Uploading and calling Vision API…</span>
+                            </div>
+                          ) : (
+                            <div className="border-2 border-dashed border-card-border p-8 rounded-2xl text-center space-y-4 bg-card/25 flex flex-col items-center">
+                              <Camera className="w-12 h-12 text-muted-foreground/50 mb-2" />
+                              <span className="text-xs font-semibold text-muted-foreground block">Simulate Photo Logging:</span>
+                              <div className="flex gap-2 w-full justify-center">
+                                <button
+                                  onClick={() => handleSimulateVisionAPI('chicken')}
+                                  className="py-2.5 px-4 rounded-xl bg-card border border-card-border text-xs font-bold hover:border-status-orange/30 cursor-pointer focus-visible:ring-2 focus-visible:ring-status-orange outline-none"
+                                >
+                                  📷 Chicken & Rice Plate
+                                </button>
+                                <button
+                                  onClick={() => handleSimulateVisionAPI('shake')}
+                                  className="py-2.5 px-4 rounded-xl bg-card border border-card-border text-xs font-bold hover:border-status-orange/30 cursor-pointer focus-visible:ring-2 focus-visible:ring-status-orange outline-none"
+                                >
+                                  📷 Oat Protein Shake
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Meal History */}
+                    <div className="glass-panel p-8 rounded-3xl">
+                      <h3 className="text-lg font-bold mb-6">Today's Meals ({athleteMeals.length})</h3>
+                      {athleteMeals.length > 0 ? (
+                        <div className="space-y-4">
+                          {athleteMeals.map((m) => (
+                            <div key={m.id} className="p-4 rounded-2xl bg-card/40 border border-card-border flex items-center justify-between animate-fade-in">
+                              <div className="flex items-center gap-4">
+                                <span className="text-3xl p-3 bg-card rounded-xl border border-card-border">{m.photo}</span>
+                                <div>
+                                  <h4 className="font-bold text-foreground text-sm">{m.food}</h4>
+                                  <p className="text-[10px] text-muted-foreground">{m.time} • {m.calories} kcal</p>
+                                </div>
+                              </div>
+                              <div className="flex gap-4 text-xs font-semibold text-muted-foreground text-right">
+                                <div>
+                                  <span className="block text-[9px] text-muted-foreground uppercase font-bold">P</span>
+                                  <span className="text-foreground">{m.macros.p}g</span>
+                                </div>
+                                <div>
+                                  <span className="block text-[9px] text-muted-foreground uppercase font-bold">C</span>
+                                  <span className="text-foreground">{m.macros.c}g</span>
+                                </div>
+                                <div>
+                                  <span className="block text-[9px] text-muted-foreground uppercase font-bold">F</span>
+                                  <span className="text-foreground">{m.macros.f}g</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-10 text-xs text-muted-foreground">
+                          Upload a photograph to log your first meal.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <Navigate to="/athlete/signin" replace />
+            )
+          } 
+        />
+
+        {/* Catch-all Redirect */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+
+      {/* Consent modal gate */}
+      {showConsentModal && (
+        <ConsentModal onAccept={handleConsentAccept} onDecline={handleConsentDecline} />
+      )}
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <BrowserRouter>
+        <MainApp />
+      </BrowserRouter>
+    </ThemeProvider>
+  );
+}
