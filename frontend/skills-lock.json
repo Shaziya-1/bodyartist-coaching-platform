@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "coach-athlete": {
+      "source": "local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/coach-athlete/SKILL.md",
+      "computedHash": "local-development-draft"
+    },
     "frontend-design": {
       "source": "anthropics/skills",
       "sourceType": "github",
