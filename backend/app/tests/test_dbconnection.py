@@ -8,7 +8,6 @@ load_dotenv()
 def test_database_connection():
     print("[INFO] Connecting to local Postgres and creating tables...")
     try:
-        # 1. Yeh command automatic database mein 'users' table generate kar degi
         Base.metadata.create_all(bind=engine)
         print("[SUCCESS] Table 'users' successfully created in your database!")
 
