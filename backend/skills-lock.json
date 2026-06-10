@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "fastapi": {
+      "source": "fastapi/fastapi",
+      "sourceType": "github",
+      "skillPath": "fastapi/.agents/skills/fastapi/SKILL.md",
+      "computedHash": "ee23d5285caf055cf164ff45dd34888d381143564666baacab8aa786f22e413a"
+    },
+    "fastapi-python": {
+      "source": "mindrally/skills",
+      "sourceType": "github",
+      "skillPath": "fastapi-python/SKILL.md",
+      "computedHash": "1d7346210a6690d2faeb089f074c0dc20a7056c2c83ac1062a11c1b73158be72"
+    },
+    "python-fastapi-ddd-skill": {
+      "source": "iktakahiro/python-fastapi-ddd-skill",
+      "sourceType": "github",
+      "skillPath": "skills/python-fastapi-ddd-skill/SKILL.md",
+      "computedHash": "a3b80305fb0abf7212d6457380b6046923e38d957e8455bcbe061f40f39fec92"
+    },
+    "python-fastapi-ddd-testing-skill": {
+      "source": "iktakahiro/python-fastapi-ddd-skill",
+      "sourceType": "github",
+      "skillPath": "skills/python-fastapi-ddd-testing-skill/SKILL.md",
+      "computedHash": "1f4bd5eebcdfa28862a6d039018b33e2b3f695da79a63bca3d1c15b46e30516a"
+    }
+  }
+}
