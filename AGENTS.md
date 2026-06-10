@@ -7,12 +7,12 @@ This document serves as the system prompt and behavioral guide for AI Agents wor
 ## 1. Tech Stack & Architecture
 
 *   **Backend**: Python 3.10+, FastAPI, SQLAlchemy (relational database mapping, default PostgreSQL), Uvicorn.
-*   **Frontend**: React (Vite + TypeScript), Vanilla CSS styling (premium, clean look, HSL colors). *No TailwindCSS unless explicitly requested.*
+*   **Frontend**: React (Vite + TypeScript) + Tailwind CSS.
 *   **Database**: Supabase / PostgreSQL.
 *   **Directory Structure**:
     *   `/backend` - FastAPI server and modules.
-    *   `/frontend` - React + Vite user interface.
-    *   `/.agents/skills` - Installed agent skills.
+    *   `/frontend` - React + Vite + Tailwind user interface.
+    *   `/frontend/.agents/skills` - Installed agent skills.
 
 ---
 
