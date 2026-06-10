@@ -31,3 +31,14 @@ class UserRepository:
         db.commit()
         db.refresh(db_user)
         return db_user
+
+    @staticmethod
+    def get_athletes_by_coach(db: Session, coach_id: UUID) -> list[User]:
+        return db.query(User).filter(User.coach_id == coach_id, User.role == "athlete").all()
+
+    @staticmethod
+    def update_password(db: Session, user: User, password_hash: str) -> User:
+        user.password_hash = password_hash
+        db.commit()
+        db.refresh(user)
+        return user

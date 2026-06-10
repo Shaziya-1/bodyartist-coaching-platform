@@ -29,95 +29,33 @@ interface Athlete {
 
 function MainApp() {
   const navigate = useNavigate();
-  const [role, setRole] = useState<'coach' | 'athlete' | null>(null);
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  
+  const role = useAuthStore((state) => state.role);
+  const storeName = useAuthStore((state) => state.name);
+  const storeEmail = useAuthStore((state) => state.email);
+  const user = storeName && storeEmail ? { name: storeName, email: storeEmail } : null;
+
   const [showConsentModal, setShowConsentModal] = useState<boolean>(false);
 
-  React.useEffect(() => {
-    const state = useAuthStore.getState();
-    if (state.role && state.email && state.name) {
-      setRole(state.role);
-      setUser({ name: state.name, email: state.email });
-    }
-  }, []);
+  // Athletes database list
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
 
-  // Mock Athletes database (Initial State)
-  const [athletes, setAthletes] = useState<Athlete[]>([
-    {
-      id: 'ath-1',
-      name: 'Rohit Sharma',
-      email: 'rohit@fitness.com',
-      score: 92,
-      streak: 12,
-      weight: 84.5,
-      waterLog: 8,
-      waterTarget: 8,
-      mealsLogged: 5,
-      mealsTarget: 5,
-      status: 'green',
-      supplements: [
-        { name: 'Creatine Monohydrate', completed: true, required: true },
-        { name: 'Omega 3 Fish Oil', completed: true, required: true },
-        { name: 'Multivitamin Formula', completed: true, required: true },
-        { name: 'Whey Protein Isolate', completed: true, required: false },
-      ],
-      mealHistory: [
-        { id: 'm-1', time: '08:30 AM', food: 'Scrambled Eggs & Oats', calories: 480, macros: { p: 35, c: 45, f: 16 }, photo: '🍳' },
-        { id: 'm-2', time: '01:00 PM', food: 'Grilled Chicken & Rice', calories: 650, macros: { p: 50, c: 75, f: 12 }, photo: '🍗' },
-        { id: 'm-3', time: '04:30 PM', food: 'Whey Protein Shake', calories: 220, macros: { p: 30, c: 5, f: 2 }, photo: '🥤' },
-        { id: 'm-4', time: '08:00 PM', food: 'Baked Salmon & Broccoli', calories: 510, macros: { p: 42, c: 15, f: 22 }, photo: '🐟' },
-        { id: 'm-5', time: '10:30 PM', food: 'Micellar Casein Pudding', calories: 180, macros: { p: 25, c: 8, f: 1 }, photo: '🥣' },
-      ]
-    },
-    {
-      id: 'ath-2',
-      name: 'Virat Kohli',
-      email: 'virat@fitness.com',
-      score: 78,
-      streak: 8,
-      weight: 76.2,
-      waterLog: 6,
-      waterTarget: 8,
-      mealsLogged: 4,
-      mealsTarget: 5,
-      status: 'yellow',
-      supplements: [
-        { name: 'Creatine Monohydrate', completed: true, required: true },
-        { name: 'Omega 3 Fish Oil', completed: false, required: true },
-        { name: 'Multivitamin Formula', completed: true, required: true },
-        { name: 'Whey Protein Isolate', completed: true, required: false },
-      ],
-      mealHistory: [
-        { id: 'm-6', time: '07:30 AM', food: 'Protein Pancake & Berries', calories: 420, macros: { p: 30, c: 50, f: 8 }, photo: '🥞' },
-        { id: 'm-7', time: '12:30 PM', food: 'Steamed Tofu & Quinoa', calories: 530, macros: { p: 35, c: 65, f: 10 }, photo: '🥗' },
-        { id: 'm-8', time: '05:00 PM', food: 'Almond Milk Smoothie', calories: 250, macros: { p: 20, c: 18, f: 12 }, photo: '🥤' },
-        { id: 'm-9', time: '08:30 PM', food: 'Lentil soup & Salad', calories: 400, macros: { p: 28, c: 55, f: 6 }, photo: '🥣' },
-      ]
-    },
-    {
-      id: 'ath-3',
-      name: 'Hardik Pandya',
-      email: 'hardik@fitness.com',
-      score: 45,
-      streak: 0,
-      weight: 78.8,
-      waterLog: 3,
-      waterTarget: 8,
-      mealsLogged: 2,
-      mealsTarget: 5,
-      status: 'red',
-      supplements: [
-        { name: 'Creatine Monohydrate', completed: false, required: true },
-        { name: 'Omega 3 Fish Oil', completed: false, required: true },
-        { name: 'Multivitamin Formula', completed: true, required: true },
-        { name: 'Whey Protein Isolate', completed: false, required: false },
-      ],
-      mealHistory: [
-        { id: 'm-10', time: '09:00 AM', food: 'Double Bacon Egg Muffin', calories: 680, macros: { p: 28, c: 48, f: 38 }, photo: '🍔' },
-        { id: 'm-11', time: '02:00 PM', food: 'Large Cheese Pizza Slice', calories: 450, macros: { p: 18, c: 52, f: 19 }, photo: '🍕' },
-      ]
+  // Query roster athletes from backend
+  React.useEffect(() => {
+    if (role === 'coach') {
+      const coachId = useAuthStore.getState().id;
+      if (coachId) {
+        fetch(`http://localhost:8000/api/auth/coach/athletes?coach_id=${coachId}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (Array.isArray(data)) {
+              setAthletes(data);
+            }
+          })
+          .catch((err) => console.error("Failed to fetch roster:", err));
+      }
     }
-  ]);
+  }, [role]);
 
   // Selected Athlete for drill-down view
   const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null);
@@ -125,9 +63,15 @@ function MainApp() {
   // New Athlete Provisioning State
   const [provName, setProvName] = useState('');
   const [provEmail, setProvEmail] = useState('');
+  const [provPassword, setProvPassword] = useState('');
   const [provMeals, setProvMeals] = useState(5);
   const [provWeight, setProvWeight] = useState(80);
   const [provSuccess, setProvSuccess] = useState(false);
+  const [lastProvisioned, setLastProvisioned] = useState<{ email: string; pass: string } | null>(null);
+
+  // Reset password states
+  const [resetPasswordVal, setResetPasswordVal] = useState('');
+  const [resetSuccessMsg, setResetSuccessMsg] = useState('');
 
   // Athlete Dashboard Logging States
   const [athleteWater, setAthleteWater] = useState(0);
@@ -144,9 +88,6 @@ function MainApp() {
   const [portionScale, setPortionScale] = useState(100); // percentage
 
   const handleLoginSuccess = (userRole: string, loggedUser: { name: string; email: string }) => {
-    setRole(userRole as 'coach' | 'athlete');
-    setUser(loggedUser);
-    
     if (userRole === 'athlete') {
       const accepted = localStorage.getItem(`consent-${loggedUser.email}`);
       if (accepted === 'true') {
@@ -168,52 +109,96 @@ function MainApp() {
   const handleConsentDecline = () => {
     useAuthStore.getState().clearAuth();
     setShowConsentModal(false);
-    setRole(null);
-    setUser(null);
     navigate('/');
   };
 
   const handleLogout = () => {
     useAuthStore.getState().clearAuth();
-    setRole(null);
-    setUser(null);
     setSelectedAthlete(null);
     navigate('/');
   };
 
   // Athlete Provision Handler
-  const handleProvisionAthlete = (e: React.FormEvent) => {
+  const handleProvisionAthlete = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!provName || !provEmail) return;
+    if (!provName || !provEmail || !provPassword) return;
 
-    const newAthlete: Athlete = {
-      id: `ath-${Date.now()}`,
-      name: provName,
-      email: provEmail,
-      score: 0,
-      streak: 0,
-      weight: provWeight,
-      waterLog: 0,
-      waterTarget: 8,
-      mealsLogged: 0,
-      mealsTarget: provMeals,
-      status: 'red',
-      supplements: [
-        { name: 'Creatine Monohydrate', completed: false, required: true },
-        { name: 'Omega 3 Fish Oil', completed: false, required: true },
-        { name: 'Multivitamin Formula', completed: false, required: true },
-      ],
-      mealHistory: []
-    };
+    try {
+      const coachId = useAuthStore.getState().id;
+      if (!coachId) {
+        alert('Coach ID not found. Please sign in again.');
+        return;
+      }
 
-    setAthletes((prev) => [newAthlete, ...prev]);
-    setProvSuccess(true);
-    setProvName('');
-    setProvEmail('');
-    
-    setTimeout(() => {
-      setProvSuccess(false);
-    }, 3000);
+      const res = await fetch('http://localhost:8000/api/auth/athlete/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: provName,
+          email: provEmail,
+          password: provPassword,
+          coachId: coachId
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || 'Failed to provision athlete.');
+        return;
+      }
+
+      const newAthlete: Athlete = {
+        id: data.id,
+        name: provName,
+        email: provEmail,
+        score: 0,
+        streak: 0,
+        weight: provWeight,
+        waterLog: 0,
+        waterTarget: 8,
+        mealsLogged: 0,
+        mealsTarget: provMeals,
+        status: 'red',
+        supplements: [
+          { name: 'Creatine Monohydrate', completed: false, required: true },
+          { name: 'Omega 3 Fish Oil', completed: false, required: true },
+          { name: 'Multivitamin Formula', completed: false, required: true },
+        ],
+        mealHistory: []
+      };
+
+      setLastProvisioned({ email: provEmail, pass: provPassword });
+      setAthletes((prev) => [newAthlete, ...prev]);
+      setProvSuccess(true);
+      setProvName('');
+      setProvEmail('');
+      setProvPassword('');
+    } catch (err: any) {
+      alert(err.message || 'An error occurred during athlete provisioning.');
+    }
+  };
+
+  const handleResetAthletePassword = async (athleteId: string) => {
+    if (!resetPasswordVal) return;
+    try {
+      const res = await fetch('http://localhost:8000/api/auth/athlete/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          athleteId,
+          newPassword: resetPasswordVal
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || 'Failed to reset password.');
+        return;
+      }
+      setResetSuccessMsg('Password reset successfully!');
+      setResetPasswordVal('');
+      setTimeout(() => setResetSuccessMsg(''), 3000);
+    } catch (err: any) {
+      alert(err.message || 'An error occurred during password reset.');
+    }
   };
 
   // Simulate Food Recognition API Upload
@@ -382,6 +367,34 @@ function MainApp() {
                             <span className="font-semibold text-foreground">{selectedAthlete.weight} kg</span>
                           </div>
                         </div>
+
+                        <div className="border-t border-card-border pt-6 space-y-4">
+                          <h4 className="text-xs font-extrabold uppercase tracking-widest text-muted-foreground">Security Settings</h4>
+                          {resetSuccessMsg && (
+                            <div className="p-3 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                              {resetSuccessMsg}
+                            </div>
+                          )}
+                          <div className="space-y-2">
+                            <label className="text-[10px] text-muted-foreground uppercase font-bold block">New Password</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="password"
+                                value={resetPasswordVal}
+                                onChange={(e) => setResetPasswordVal(e.target.value)}
+                                placeholder="Enter new password…"
+                                className="flex-1 py-2 px-3 rounded-xl bg-card border border-card-border text-xs outline-none focus:border-primary/50 text-foreground"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleResetAthletePassword(selectedAthlete.id)}
+                                className="py-2 px-3 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/95 transition-all cursor-pointer"
+                              >
+                                Reset
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Right Card: Meal Feed */}
@@ -507,9 +520,36 @@ function MainApp() {
                         <h3 className="text-xl font-bold mb-2">Provision Athlete</h3>
                         <p className="text-xs text-muted-foreground mb-6">Register a new client roster profile. Access links will be generated automatically.</p>
                         
-                        {provSuccess && (
-                          <div className="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold animate-fade-in">
-                            New athlete provisioned successfully! Credentials sent to email.
+                        {provSuccess && lastProvisioned && (
+                          <div className="mb-6 p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs space-y-3 animate-fade-in relative">
+                            <h4 className="font-bold text-sm">Roster Athlete Provisioned!</h4>
+                            <p className="text-muted-foreground leading-relaxed">
+                              Share these credentials with the athlete:
+                            </p>
+                            <div className="p-3 bg-card/60 rounded-xl border border-card-border font-mono text-[11px] select-all space-y-1 text-foreground">
+                              <div><strong>Email:</strong> {lastProvisioned.email}</div>
+                              <div><strong>Password:</strong> {lastProvisioned.pass}</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(`Email: ${lastProvisioned.email}\nPassword: ${lastProvisioned.pass}`);
+                                alert("Credentials copied to clipboard!");
+                              }}
+                              className="w-full py-2 bg-emerald-500 text-slate-950 font-bold hover:bg-emerald-400 rounded-xl transition-all cursor-pointer text-center"
+                            >
+                              Copy Credentials
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProvSuccess(false);
+                                setLastProvisioned(null);
+                              }}
+                              className="absolute top-2 right-3 text-muted-foreground hover:text-foreground font-bold text-sm cursor-pointer"
+                            >
+                              ✕
+                            </button>
                           </div>
                         )}
 
@@ -534,6 +574,18 @@ function MainApp() {
                               value={provEmail}
                               onChange={(e) => setProvEmail(e.target.value)}
                               placeholder="e.g., client@athlete.com…"
+                              className="w-full py-2.5 px-4 rounded-xl bg-card border border-card-border focus:border-primary/50 outline-none text-sm focus:ring-1 focus:ring-primary/20"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label htmlFor="p-password" className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Password</label>
+                            <input
+                              type="password"
+                              id="p-password"
+                              value={provPassword}
+                              onChange={(e) => setProvPassword(e.target.value)}
+                              placeholder="Choose password…"
                               className="w-full py-2.5 px-4 rounded-xl bg-card border border-card-border focus:border-primary/50 outline-none text-sm focus:ring-1 focus:ring-primary/20"
                               required
                             />
