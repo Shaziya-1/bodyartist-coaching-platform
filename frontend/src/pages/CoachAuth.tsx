@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShieldAlert, ArrowLeft } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, KeyRound, Mail, User } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 
 interface CoachAuthProps {
@@ -99,12 +99,13 @@ export const CoachAuth: React.FC<CoachAuthProps> = ({ isSignUp, onLoginSuccess }
   return (
     <div className="min-h-screen flex flex-col justify-center items-center px-4 relative overflow-hidden bg-background text-foreground transition-colors duration-300">
       {/* Background Gradient Glows */}
-      <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-primary/10 blur-[120px] pointer-events-none" />
+      <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-primary/10 blur-[130px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-status-orange/5 blur-[120px] pointer-events-none" />
 
       {/* Back to Portal button */}
       <Link
         to="/"
-        className="absolute top-6 left-6 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-lg outline-none"
+        className="absolute top-6 left-6 flex items-center gap-2 text-sm text-muted-foreground hover:text-white font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-lg outline-none"
         aria-label="Back to Portal"
       >
         <ArrowLeft className="w-4 h-4" />
@@ -112,18 +113,20 @@ export const CoachAuth: React.FC<CoachAuthProps> = ({ isSignUp, onLoginSuccess }
       </Link>
 
       {/* Form Container */}
-      <div className="w-full max-w-md glass-panel p-8 md:p-10 rounded-3xl z-10 animate-fade-in">
+      <div className="w-full max-w-md glass-panel p-8 md:p-10 rounded-3xl z-10 animate-fade-in relative">
+        <div className="absolute top-0 inset-x-0 h-1 rounded-t-3xl bg-gradient-to-r from-primary via-purple-500 to-status-orange" />
+        
         <div className="text-center mb-8">
-          <span className="text-xs uppercase tracking-widest text-primary font-bold px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
-            Admin Access
+          <span className="text-[10px] uppercase tracking-widest text-primary font-black px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
+            Admin Portal
           </span>
-          <h2 className="text-3xl font-black mt-4 tracking-tight">
-            {isSignUp ? 'Create Coach Account' : 'Coach Login'}
+          <h2 className="text-3xl font-black mt-4 tracking-tight text-white">
+            {isSignUp ? 'Register Team' : 'Coach Login'}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {isSignUp
-              ? 'Register your coaching team credentials'
-              : 'Enter your credentials to monitor athlete adherence'}
+              ? 'Provision a coach group workspace'
+              : 'Sign in to monitor athlete performance logs'}
           </p>
         </div>
 
@@ -143,16 +146,19 @@ export const CoachAuth: React.FC<CoachAuthProps> = ({ isSignUp, onLoginSuccess }
               <label htmlFor="coach-name" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
                 Full Name
               </label>
-              <input
-                type="text"
-                id="coach-name"
-                name="name"
-                autoComplete="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Aryan Sharma…"
-                className="w-full py-3 px-4 rounded-xl bg-card/50 border border-card-border focus:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/30 outline-none transition-all placeholder:text-muted-foreground/45 text-sm"
-              />
+              <div className="relative">
+                <User className="absolute left-4 top-3.5 w-4 h-4 text-muted-foreground/60" />
+                <input
+                  type="text"
+                  id="coach-name"
+                  name="name"
+                  autoComplete="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Aryan Sharma"
+                  className="w-full py-3 pl-11 pr-4 rounded-xl bg-card/40 border border-card-border focus:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20 outline-none transition-all placeholder:text-muted-foreground/40 text-sm text-white"
+                />
+              </div>
             </div>
           )}
 
@@ -160,42 +166,48 @@ export const CoachAuth: React.FC<CoachAuthProps> = ({ isSignUp, onLoginSuccess }
             <label htmlFor="coach-email" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
               Email Address
             </label>
-            <input
-              type="email"
-              id="coach-email"
-              name="email"
-              autoComplete="email"
-              spellCheck={false}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="e.g., coach@bodyartist.com…"
-              className="w-full py-3 px-4 rounded-xl bg-card/50 border border-card-border focus:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/30 outline-none transition-all placeholder:text-muted-foreground/45 text-sm"
-            />
+            <div className="relative">
+              <Mail className="absolute left-4 top-3.5 w-4 h-4 text-muted-foreground/60" />
+              <input
+                type="email"
+                id="coach-email"
+                name="email"
+                autoComplete="email"
+                spellCheck={false}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="coach@bodyartist.com"
+                className="w-full py-3 pl-11 pr-4 rounded-xl bg-card/40 border border-card-border focus:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20 outline-none transition-all placeholder:text-muted-foreground/40 text-sm text-white"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
             <label htmlFor="coach-password" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
               Password
             </label>
-            <input
-              type="password"
-              id="coach-password"
-              name="password"
-              autoComplete={isSignUp ? 'new-password' : 'current-password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password…"
-              className="w-full py-3 px-4 rounded-xl bg-card/50 border border-card-border focus:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/30 outline-none transition-all placeholder:text-muted-foreground/45 text-sm"
-            />
+            <div className="relative">
+              <KeyRound className="absolute left-4 top-3.5 w-4 h-4 text-muted-foreground/60" />
+              <input
+                type="password"
+                id="coach-password"
+                name="password"
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full py-3 pl-11 pr-4 rounded-xl bg-card/40 border border-card-border focus:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20 outline-none transition-all placeholder:text-muted-foreground/40 text-sm text-white"
+              />
+            </div>
           </div>
 
           {isSignUp && (
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <label htmlFor="coach-invite" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-                  Coach Invite Code
+                  Registration Invite Code
                 </label>
-                <span className="text-[10px] text-primary font-bold bg-primary/10 px-1.5 py-0.5 rounded">
+                <span className="text-[10px] text-primary font-bold bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20">
                   Use: ARTIST2026
                 </span>
               </div>
@@ -206,8 +218,8 @@ export const CoachAuth: React.FC<CoachAuthProps> = ({ isSignUp, onLoginSuccess }
                 autoComplete="off"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value)}
-                placeholder="Enter verification code…"
-                className="w-full py-3 px-4 rounded-xl bg-card/50 border border-card-border focus:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/30 outline-none transition-all placeholder:text-muted-foreground/45 text-sm"
+                placeholder="Enter workspace invite key"
+                className="w-full py-3 px-4 rounded-xl bg-card/40 border border-card-border focus:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20 outline-none transition-all placeholder:text-muted-foreground/40 text-sm text-white"
               />
             </div>
           )}
@@ -215,24 +227,24 @@ export const CoachAuth: React.FC<CoachAuthProps> = ({ isSignUp, onLoginSuccess }
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-4 mt-6 rounded-2xl bg-primary text-primary-foreground font-bold hover:bg-primary/95 hover:shadow-lg hover:shadow-primary/30 transition-all duration-300 cursor-pointer disabled:opacity-75 flex items-center justify-center gap-2"
+            className="w-full py-4 mt-6 rounded-2xl bg-gradient-to-r from-primary to-purple-600 text-white font-bold hover:shadow-lg hover:shadow-primary/20 transition-all duration-300 cursor-pointer disabled:opacity-75 flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99]"
           >
-            {loading ? 'Authenticating…' : isSignUp ? 'Create Coach Account' : 'Verify & Enter'}
+            {loading ? 'Authenticating...' : isSignUp ? 'Register Group Portal' : 'Authenticate & Enter'}
           </button>
         </form>
 
-        <div className="mt-8 text-center border-t border-card-border pt-6">
+        <div className="mt-8 text-center border-t border-card-border/50 pt-6">
           {isSignUp ? (
             <Link
               to="/coach/signin"
-              className="text-xs text-muted-foreground hover:text-primary font-bold transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded outline-none"
+              className="text-xs text-muted-foreground hover:text-primary font-bold transition-colors focus-visible:ring-2 focus-visible:ring-primary outline-none"
             >
               Already registered? Sign In instead
             </Link>
           ) : (
             <Link
               to="/coach/signup"
-              className="text-xs text-muted-foreground hover:text-primary font-bold transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded outline-none"
+              className="text-xs text-muted-foreground hover:text-primary font-bold transition-colors focus-visible:ring-2 focus-visible:ring-primary outline-none"
             >
               Don't have an admin account? Register here
             </Link>
