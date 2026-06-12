@@ -1,0 +1,62 @@
+erDiagram
+    users ||--o| diet_plans : "has targets"
+    users ||--o{ daily_logs : "tracks daily status"
+    users ||--o{ meal_logs : "records meal events"
+    users ||--o{ vision_api_calls : "audits vision cost"
+
+    users {
+        uuid id PK
+        string name
+        string email
+        string role "coach | athlete"
+        uuid coach_id FK
+        datetime created_at
+    }
+
+    diet_plans {
+        uuid id PK
+        uuid athlete_id FK "users.id"
+        int meals_target
+        int water_target
+        int steps_target
+        int cardio_target
+        int tolerance_percent
+        jsonb target_macros "P/C/F targets"
+        jsonb supplement_checklist "List of [{name, required}]"
+    }
+
+    daily_logs {
+        uuid id PK
+        uuid athlete_id FK "users.id"
+        date log_date
+        int water_logged
+        int steps_logged
+        int cardio_logged
+        numeric weight
+        int score "Computed daily score 0-100"
+        string status "green | yellow | orange | red"
+        jsonb supplement_checkoffs "List of [{name, completed}]"
+    }
+
+    meal_logs {
+        uuid id PK
+        uuid athlete_id FK "users.id"
+        date log_date
+        datetime logged_at
+        string food_name
+        string photo_url "Cloudinary link"
+        jsonb raw_ai_macros "Initial AI estimate"
+        jsonb confirmed_macros "User confirmed/nudged macros"
+        float confidence "AI score"
+        boolean is_edited "True if user nudged it"
+    }
+
+    vision_api_calls {
+        uuid id PK
+        uuid athlete_id FK "users.id"
+        datetime timestamp
+        string api_provider "LogMeal | Spike"
+        string status "success | error"
+        int retry_count
+        numeric cost
+    }
