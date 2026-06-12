@@ -1,5 +1,5 @@
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy import Column, String, ForeignKey, DateTime, Numeric, Boolean
+from sqlalchemy import Column, String, ForeignKey, DateTime, Numeric, Boolean, Float
 from sqlalchemy.orm import relationship
 import uuid
 import datetime
@@ -27,6 +27,8 @@ class MealLog(Base):
     estimated_micronutrients = Column(JSONB, nullable=False, default=dict)
     
     is_edited = Column(Boolean, nullable=False, default=False)
+
+    serving_size = Column(Float, nullable=True)
 
     # not for v1
 
