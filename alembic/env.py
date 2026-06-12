@@ -9,7 +9,10 @@ from dotenv import load_dotenv
 from alembic import context
 
 from backend.app.config.database import Base
-from backend.app.models.users_model import User  # explicit import 
+
+# because models/__init__.py has __all__ = ["User", "MealLog", "VisionApiCalls"]
+from backend.app.models import *
+
 
 # Load environment variables
 load_dotenv()

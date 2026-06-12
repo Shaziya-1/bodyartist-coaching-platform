@@ -13,6 +13,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
   const navigate = useNavigate();
   const name = useAuthStore((state) => state.name);
   const email = useAuthStore((state) => state.email);
+  const id = useAuthStore((state) => state.id);
 
   const handleLogout = () => {
     onLogout();
@@ -140,6 +141,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
 
   // Vision Result State (for Confirmation/Nudge layout)
   const [showConfirmPane, setShowConfirmPane] = useState(false);
+  const [initialMacros, setInitialMacros] = useState({ p: 0, f: 0, c: 0 });
   const [mealFormData, setMealFormData] = useState({
     time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
     food: '',
@@ -153,7 +155,8 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
       potassium: 0,
       magnesium: 0,
       vitaminB12: 0,
-    }
+    },
+    rawVisionResponse: {} as any
   });
 
   const toggleSupplement = (id: string) => {
@@ -180,61 +183,129 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Load local preview
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setTempImage(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-
     setUploadingImage(true);
     setScanAnimation(true);
 
-    // Simulate server vision processing (LogMeal Mock API call)
-    setTimeout(() => {
-      setScanAnimation(false);
-      setUploadingImage(false);
-      setShowConfirmPane(true);
+    const formData = new FormData();
+    formData.append("image", file);
+    formData.append("athlete_id", id || "00000000-0000-0000-0000-000000000000"); // placeholder if not logged in
+
+    try {
+      const response = await fetch("http://localhost:8000/api/meals/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to upload and recognize meal");
+      }
+
+      const data = await response.json();
       
-      // Preset LogMeal AI prediction
+      setTempImage(data.photo_url);
+      setInitialMacros({
+        p: Math.round(data.estimated_protein) || 0,
+        f: Math.round(data.estimated_fat) || 0,
+        c: Math.round(data.estimated_carbs) || 0
+      });
+      
       setMealFormData({
         time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-        food: 'Grilled Salmon Bowl w/ Quinoa & Avocado',
-        macros: { p: 38, f: 19, c: 32 },
-        calories: 450,
-        confidence: 87,
+        food: data.food_name,
+        macros: {
+          p: Math.round(data.estimated_protein) || 0,
+          f: Math.round(data.estimated_fat) || 0,
+          c: Math.round(data.estimated_carbs) || 0
+        },
+        calories: Math.round(data.estimated_calories) || 0,
+        confidence: Math.round(data.confidence_score * 100) || 0,
         micronutrients: {
-          fiber: 6.2,
-          iron: 3.4,
-          calcium: 45,
-          potassium: 620,
-          magnesium: 95,
-          vitaminB12: 4.8,
-        }
+          fiber: data.estimated_micronutrients?.fiber || 0,
+          iron: data.estimated_micronutrients?.iron || 0,
+          calcium: data.estimated_micronutrients?.calcium || 0,
+          potassium: data.estimated_micronutrients?.potassium || 0,
+          magnesium: data.estimated_micronutrients?.magnesium || 0,
+          vitaminB12: data.estimated_micronutrients?.vitaminB12 || 0,
+        },
+        rawVisionResponse: data.raw_vision_response || {}
       });
-    }, 2200);
+
+      setShowConfirmPane(true);
+    } catch (err) {
+      console.error(err);
+      alert("Error detecting meal: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setScanAnimation(false);
+      setUploadingImage(false);
+    }
   };
 
-  const handleCommitMeal = (e: React.FormEvent) => {
+  const handleCommitMeal = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newMeal = {
-      id: (meals.length + 1).toString(),
-      time: mealFormData.time,
-      food: mealFormData.food,
-      macros: mealFormData.macros,
-      calories: mealFormData.calories,
-      photo: tempImage,
-      confidence: mealFormData.confidence,
-      isEdited: mealFormData.macros.p !== 38 || mealFormData.macros.c !== 32 || mealFormData.macros.f !== 19, // Flag if nudged
+
+    const isEdited = mealFormData.macros.p !== initialMacros.p ||
+                     mealFormData.macros.c !== initialMacros.c ||
+                     mealFormData.macros.f !== initialMacros.f;
+
+    const payload = {
+      athlete_id: id || "00000000-0000-0000-0000-000000000000",
+      food_name: mealFormData.food,
+      photo_url: tempImage,
+      raw_vision_response: mealFormData.rawVisionResponse,
+      confidence_score: mealFormData.confidence / 100,
+      estimated_calories: mealFormData.calories,
+      estimated_protein: mealFormData.macros.p,
+      estimated_carbs: mealFormData.macros.c,
+      estimated_fat: mealFormData.macros.f,
+      estimated_micronutrients: {
+        fiber: mealFormData.micronutrients.fiber,
+        iron: mealFormData.micronutrients.iron,
+        calcium: mealFormData.micronutrients.calcium,
+        potassium: mealFormData.micronutrients.potassium,
+        magnesium: mealFormData.micronutrients.magnesium,
+        vitaminB12: mealFormData.micronutrients.vitaminB12
+      },
+      serving_size: 150.0,
+      is_edited: isEdited
     };
-    
-    const nextMeals = [...meals, newMeal];
-    setMeals(nextMeals);
-    saveTelemetry({ meals: nextMeals });
-    
-    setShowConfirmPane(false);
-    setShowMealModal(false);
-    setTempImage(null);
+
+    try {
+      const response = await fetch("http://localhost:8000/api/meals/confirm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save confirmed meal");
+      }
+
+      const dbResult = await response.json();
+
+      const newMeal = {
+        id: dbResult.meal_id || (meals.length + 1).toString(),
+        time: mealFormData.time,
+        food: mealFormData.food,
+        macros: mealFormData.macros,
+        calories: mealFormData.calories,
+        photo: tempImage,
+        confidence: mealFormData.confidence,
+        isEdited: isEdited,
+      };
+      
+      const nextMeals = [...meals, newMeal];
+      setMeals(nextMeals);
+      saveTelemetry({ meals: nextMeals });
+      
+      setShowConfirmPane(false);
+      setShowMealModal(false);
+      setTempImage(null);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save meal: " + (err instanceof Error ? err.message : String(err)));
+    }
   };
 
   const handleWeightChange = (val: number) => {
