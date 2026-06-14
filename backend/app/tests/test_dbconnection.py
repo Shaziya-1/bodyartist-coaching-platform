@@ -2,15 +2,16 @@ from dotenv import load_dotenv
 
 from backend.app.config.database import engine, Base
 from backend.app.models.users_model import User
+from backend.app.models.meal_logs import MealLog
+from backend.app.models.vision_api_call import VisionApiCalls
 
 load_dotenv()
 
 def test_database_connection():
     print("[INFO] Connecting to local Postgres and creating tables...")
     try:
-        # 1. Yeh command automatic database mein 'users' table generate kar degi
         Base.metadata.create_all(bind=engine)
-        print("[SUCCESS] Table 'users' successfully created in your database!")
+        print("[SUCCESS] Tables successfully created/verified in your database!")
 
     except Exception as e:
         print("[ERROR] Error connecting to database or inserting data:")
