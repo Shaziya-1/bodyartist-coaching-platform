@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Camera, Droplet, Flame, Scale, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
+import { apiClient } from '../api/client';
 import { AdherenceHeatmap } from '../components/AdherenceHeatmap';
 import { SimpleLineChart } from '../components/SimpleLineChart';
 
@@ -12,7 +13,6 @@ interface AthleteDashboardProps {
 export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) => {
   const navigate = useNavigate();
   const name = useAuthStore((state) => state.name);
-  const email = useAuthStore((state) => state.email);
   const id = useAuthStore((state) => state.id);
 
   const handleLogout = () => {
@@ -20,19 +20,16 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
     navigate('/');
   };
 
-  // Scoped localStorage persistence
-  const storageKey = `athlete-data-${email || 'guest'}`;
-
   // State initialization
-  const [waterLogged, setWaterLogged] = useState<number>(3);
-  const waterTarget = 8;
-  const [mealsTarget] = useState<number>(5);
+  const [waterLogged, setWaterLogged] = useState<number>(0);
+  const [waterTarget, setWaterTarget] = useState<number>(8);
+  const [mealsTarget, setMealsTarget] = useState<number>(5);
   
-  const [stepsLogged, setStepsLogged] = useState<number>(6000);
-  const stepsTarget = 10000;
-  const [cardioLogged, setCardioLogged] = useState<number>(15);
-  const cardioTarget = 30;
-  const [weight, setWeight] = useState<number>(82.4);
+  const [stepsLogged, setStepsLogged] = useState<number>(0);
+  const [stepsTarget, setStepsTarget] = useState<number>(10000);
+  const [cardioLogged, setCardioLogged] = useState<number>(0);
+  const [cardioTarget, setCardioTarget] = useState<number>(30);
+  const [weight, setWeight] = useState<number>(0);
 
   const [supplements, setSupplements] = useState([
     { id: '1', name: 'Creatine Monohydrate', completed: true, required: true },
@@ -54,37 +51,100 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
     { date: '06-10', value: 82.4 },
   ]);
 
-  // Load from localStorage if present
+  // Load from API on mount
   useEffect(() => {
-    const saved = localStorage.getItem(storageKey);
-    if (saved) {
+    if (!id) return;
+    const loadDashboard = async () => {
       try {
-        const parsed = JSON.parse(saved);
-        if (typeof parsed.waterLogged === 'number') setWaterLogged(parsed.waterLogged);
-        if (Array.isArray(parsed.supplements)) setSupplements(parsed.supplements);
-        if (Array.isArray(parsed.meals)) setMeals(parsed.meals);
-        if (typeof parsed.stepsLogged === 'number') setStepsLogged(parsed.stepsLogged);
-        if (typeof parsed.cardioLogged === 'number') setCardioLogged(parsed.cardioLogged);
-        if (typeof parsed.weight === 'number') setWeight(parsed.weight);
-        if (Array.isArray(parsed.weightHistory)) setWeightHistory(parsed.weightHistory);
-      } catch (err) {
-        console.error('Failed to parse saved athlete telemetry data', err);
-      }
-    }
-  }, [storageKey]);
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        // Parallel requests
+        const [targets, summary, mealsRes, historyRes] = await Promise.all([
+          apiClient.get(`/api/v1/athlete/targets/${id}`),
+          apiClient.get(`/api/v1/athlete/dashboard-summary/${id}`),
+          apiClient.get(`/api/v1/meals/history/${id}?date=${todayStr}`),
+          apiClient.get(`/api/v1/athlete/history-timeline/${id}?start_date=${todayStr}&end_date=${todayStr}`)
+        ]);
 
-  // Save to localStorage helper
-  const saveTelemetry = (updates: any) => {
-    const current = {
-      waterLogged,
-      supplements,
-      meals,
-      stepsLogged,
-      cardioLogged,
-      weight,
-      weightHistory
+        // 1. Targets
+        setWaterTarget(targets.water_target || 8);
+        setMealsTarget(targets.meals_target || 5);
+        setStepsTarget(targets.steps_target || 10000);
+        setCardioTarget(targets.cardio_target || 30);
+        
+        // 2. Supplements (Merge targets checklist with summary checkoffs)
+        if (targets.supplement_checklist && Array.isArray(targets.supplement_checklist)) {
+           const checkedIds = summary.supplement_checkoffs?.map((s: any) => s.id) || [];
+           const mergedSupps = targets.supplement_checklist.map((s: any) => ({
+             ...s,
+             completed: checkedIds.includes(s.id)
+           }));
+           setSupplements(mergedSupps);
+        }
+
+        // 3. Summary 
+        setWaterLogged(summary.water_logged || 0);
+        setStepsLogged(summary.steps_logged || 0);
+        setCardioLogged(summary.cardio_logged || 0);
+        
+        if (summary.weight) setWeight(summary.weight);
+
+        // 4. Meals
+        if (mealsRes && Array.isArray(mealsRes.meals)) {
+           setMeals(mealsRes.meals.map((m: any) => ({
+             id: m.id,
+             time: new Date(m.logged_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+             food: m.food_name,
+             macros: { p: m.estimated_protein, f: m.estimated_fat, c: m.estimated_carbs },
+             calories: m.estimated_calories,
+             photo: m.photo_url,
+             confidence: m.confidence_score * 100,
+             isEdited: m.is_edited
+           })));
+        }
+
+        // 5. Weight History
+        if (historyRes && Array.isArray(historyRes.weight_history)) {
+           setWeightHistory(historyRes.weight_history.map((w: any) => ({
+             date: w.date.substring(5), // '06-05'
+             value: w.weight
+           })));
+        }
+      } catch (err) {
+        console.error('Failed to load dashboard data', err);
+      }
     };
-    localStorage.setItem(storageKey, JSON.stringify({ ...current, ...updates }));
+    loadDashboard();
+  }, [id]);
+
+  // Sync to API helper (Replacing localStorage)
+  const saveTelemetry = async (updates: any) => {
+    if (!id) return;
+    const logDate = new Date().toISOString().split('T')[0];
+    
+    try {
+      if (updates.waterLogged !== undefined) {
+        await apiClient.put('/api/v1/logs/water', { athlete_id: id, log_date: logDate, water_logged: updates.waterLogged });
+      }
+      if (updates.supplements !== undefined) {
+        await apiClient.put('/api/v1/logs/supplements', { 
+           athlete_id: id, 
+           log_date: logDate, 
+           supplement_checkoffs: updates.supplements.filter((s:any) => s.completed) 
+        });
+      }
+      if (updates.stepsLogged !== undefined) {
+        await apiClient.put('/api/v1/logs/steps', { athlete_id: id, log_date: logDate, steps_logged: updates.stepsLogged });
+      }
+      if (updates.cardioLogged !== undefined) {
+        await apiClient.put('/api/v1/logs/workout', { athlete_id: id, log_date: logDate, cardio_completed: updates.cardioLogged > 0, workout_completed: true });
+      }
+      if (updates.weight !== undefined) {
+        await apiClient.put('/api/v1/logs/weight', { athlete_id: id, log_date: logDate, weight: updates.weight });
+      }
+    } catch (err) {
+      console.error("Failed to sync telemetry to backend", err);
+    }
   };
 
   // Dynamic Score Calculation
@@ -191,16 +251,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
     formData.append("athlete_id", id || "00000000-0000-0000-0000-000000000000"); // placeholder if not logged in
 
     try {
-      const response = await fetch("http://localhost:8000/api/meals/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to upload and recognize meal");
-      }
-
-      const data = await response.json();
+      const data = await apiClient.post("/api/meals/upload", formData);
       
       setTempImage(data.photo_url);
       setInitialMacros({
@@ -270,19 +321,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
     };
 
     try {
-      const response = await fetch("http://localhost:8000/api/meals/confirm", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to save confirmed meal");
-      }
-
-      const dbResult = await response.json();
+      const dbResult = await apiClient.post("/api/meals/confirm", payload);
 
       const newMeal = {
         id: dbResult.meal_id || (meals.length + 1).toString(),

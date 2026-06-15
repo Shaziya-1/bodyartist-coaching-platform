@@ -1,4 +1,4 @@
-from backend.app.models.meal_log_model import MealLog
+from backend.app.models.meal_logs import MealLog
 from uuid import UUID
 from typing import List
 

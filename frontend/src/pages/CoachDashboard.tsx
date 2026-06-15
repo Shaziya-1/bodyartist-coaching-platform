@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Plus, TrendingUp, Users, Activity, AlertCircle, ArrowLeft, CheckCircle, Scale, Flame } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
+import { apiClient } from '../api/client';
 import { AthleteCard } from '../components/AthleteCard';
 import { AdherenceHeatmap } from '../components/AdherenceHeatmap';
 import { SimpleLineChart } from '../components/SimpleLineChart';
@@ -45,52 +46,32 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
   const [provisionError, setProvisionError] = useState('');
   const [provisionSuccess, setProvisionSuccess] = useState(false);
 
-  // Sync state with incoming props, but load client-side updates from localStorage
+  // Load real-time adherence stats for each athlete in the roster
   useEffect(() => {
-    const updated = initialAthletes.map(athlete => {
-      const saved = localStorage.getItem(`athlete-data-${athlete.email}`);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          
-          // Re-calculate daily score for display based on updated localStorage
-          const mealsLogged = parsed.meals ? parsed.meals.length : athlete.mealsLogged;
-          const waterLogged = typeof parsed.waterLogged === 'number' ? parsed.waterLogged : athlete.waterLog;
-          const stepsLogged = typeof parsed.stepsLogged === 'number' ? parsed.stepsLogged : 6000;
-          const cardioLogged = typeof parsed.cardioLogged === 'number' ? parsed.cardioLogged : 15;
-          const currentSupps = Array.isArray(parsed.supplements) ? parsed.supplements : athlete.supplements;
-          
-          const mealScore = Math.min(100, (mealsLogged / athlete.mealsTarget) * 100);
-          const requiredSupps = currentSupps.filter((s: any) => s.required);
-          const completedRequiredSupps = requiredSupps.filter((s: any) => s.completed).length;
-          const suppScore = requiredSupps.length > 0 ? (completedRequiredSupps / requiredSupps.length) * 100 : 100;
-          const waterScore = waterLogged >= athlete.waterTarget ? 100 : 0;
-          const workoutScore = (Math.min(100, (stepsLogged / 10000) * 100) + Math.min(100, (cardioLogged / 30) * 100)) / 2;
-          
-          const totalScore = Math.round((mealScore * 0.50) + (suppScore * 0.20) + (waterScore * 0.15) + (workoutScore * 0.15));
-          
-          let status: 'green' | 'yellow' | 'orange' | 'red' = 'red';
-          if (totalScore >= 85) status = 'green';
-          else if (totalScore >= 70) status = 'yellow';
-          else if (totalScore >= 50) status = 'orange';
-
-          return {
-            ...athlete,
-            score: totalScore,
-            status,
-            weight: typeof parsed.weight === 'number' ? parsed.weight : athlete.weight,
-            waterLog: waterLogged,
-            mealsLogged: mealsLogged,
-            supplements: currentSupps,
-            mealHistory: parsed.meals || athlete.mealHistory || []
-          };
-        } catch (err) {
-          console.error(err);
-        }
+    const fetchAthleteStats = async () => {
+      try {
+        const statsPromises = initialAthletes.map(async (athlete) => {
+          try {
+            const summary = await apiClient.get(`/api/v1/athlete/dashboard-summary/${athlete.id}`);
+            return {
+              ...athlete,
+              score: summary.score || 0,
+              status: summary.status || 'red',
+              weight: summary.weight || athlete.weight,
+              waterLog: summary.water_logged || 0,
+              streak: summary.streak || athlete.streak
+            };
+          } catch (e) {
+            return athlete;
+          }
+        });
+        const updated = await Promise.all(statsPromises);
+        setAthletes(updated);
+      } catch (err) {
+        console.error("Failed to load roster stats", err);
       }
-      return athlete;
-    });
-    setAthletes(updated);
+    };
+    fetchAthleteStats();
   }, [initialAthletes]);
 
   // Diet plan target configuration states for drill-down view
@@ -105,81 +86,65 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
   // Load configured targets when selectedAthlete changes
   useEffect(() => {
     if (selectedAthlete) {
-      const saved = localStorage.getItem(`athlete-data-${selectedAthlete.email}`);
-      let currentMealsTarget = selectedAthlete.mealsTarget;
-      let currentWaterTarget = selectedAthlete.waterTarget;
-      let currentStepsTarget = 10000;
-      let currentCardioTarget = 30;
-      let currentSupps = selectedAthlete.supplements.map(s => ({ name: s.name, required: s.required }));
-
-      if (saved) {
+      const loadTargets = async () => {
         try {
-          const parsed = JSON.parse(saved);
-          if (typeof parsed.mealsTarget === 'number') currentMealsTarget = parsed.mealsTarget;
-          if (typeof parsed.waterTarget === 'number') currentWaterTarget = parsed.waterTarget;
-          if (typeof parsed.stepsTarget === 'number') currentStepsTarget = parsed.stepsTarget;
-          if (typeof parsed.cardioTarget === 'number') currentCardioTarget = parsed.cardioTarget;
-          if (Array.isArray(parsed.supplements)) {
-            currentSupps = parsed.supplements.map((s: any) => ({ name: s.name, required: !!s.required }));
+          const targets = await apiClient.get(`/api/v1/athlete/targets/${selectedAthlete.id}`);
+          setDietMealsTarget(targets.meals_target || 5);
+          setDietWaterTarget(targets.water_target || 8);
+          setDietStepsTarget(targets.steps_target || 10000);
+          setDietCardioTarget(targets.cardio_target || 30);
+          if (targets.supplement_checklist && Array.isArray(targets.supplement_checklist)) {
+             setSuppsList(targets.supplement_checklist.map((s: any) => ({ name: s.name || s, required: s.required !== false })));
+          } else {
+             setSuppsList([]);
           }
         } catch (err) {
-          console.error(err);
+          console.error("Failed to load targets", err);
         }
-      }
-      setDietMealsTarget(currentMealsTarget);
-      setDietWaterTarget(currentWaterTarget);
-      setDietStepsTarget(currentStepsTarget);
-      setDietCardioTarget(currentCardioTarget);
-      setSuppsList(currentSupps);
+      };
+      loadTargets();
     }
   }, [selectedAthlete]);
 
-  const handleSaveTargets = () => {
+  const handleSaveTargets = async () => {
     if (!selectedAthlete) return;
-    const key = `athlete-data-${selectedAthlete.email}`;
-    const saved = localStorage.getItem(key);
-    let existingData = {};
-    if (saved) {
-      try { existingData = JSON.parse(saved); } catch (e) {}
-    }
-
-    // Map new supplement list to checklist state (retaining completion states if matching names)
-    const currentChecklist = (existingData as any).supplements || selectedAthlete.supplements;
-    const nextSupplements = suppsList.map(s => {
-      const match = currentChecklist.find((c: any) => c.name === s.name);
-      return {
-        name: s.name,
-        required: s.required,
-        completed: match ? match.completed : false,
-        id: Math.random().toString()
-      };
-    });
-
-    const updatedData = {
-      ...existingData,
-      mealsTarget: dietMealsTarget,
-      waterTarget: dietWaterTarget,
-      stepsTarget: dietStepsTarget,
-      cardioTarget: dietCardioTarget,
-      supplements: nextSupplements,
-    };
-
-    localStorage.setItem(key, JSON.stringify(updatedData));
     
-    // Refresh parent dashboard state
-    const nextAthletes = athletes.map(a => {
-      if (a.id === selectedAthlete.id) {
-        return {
-          ...a,
-          mealsTarget: dietMealsTarget,
-          waterTarget: dietWaterTarget,
-          supplements: nextSupplements
-        };
-      }
-      return a;
-    });
-    setAthletes(nextAthletes);
-    alert('Diet plan targets updated successfully!');
+    const nextSupplements = suppsList.map(s => ({
+      name: s.name,
+      required: s.required,
+      id: Math.random().toString()
+    }));
+
+    try {
+      await apiClient.post('/api/v1/diet-plan', {
+        athlete_id: selectedAthlete.id,
+        meals_target: dietMealsTarget,
+        water_target: dietWaterTarget,
+        steps_target: dietStepsTarget,
+        cardio_target: dietCardioTarget,
+        tolerance_percent: 10,
+        target_macros: { p: 200, c: 250, f: 75, cal: 2475 },
+        supplement_checklist: nextSupplements
+      });
+      
+      // Refresh parent dashboard state
+      const nextAthletes = athletes.map(a => {
+        if (a.id === selectedAthlete.id) {
+          return {
+            ...a,
+            mealsTarget: dietMealsTarget,
+            waterTarget: dietWaterTarget,
+            supplements: nextSupplements as any
+          };
+        }
+        return a;
+      });
+      setAthletes(nextAthletes);
+      alert('Diet plan targets updated successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update targets');
+    }
   };
 
   const handleAddSupp = () => {
