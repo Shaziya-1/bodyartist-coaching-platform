@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from backend.app.utils.logmeal import LogMeal
 from backend.app.repositories.meal_repository import MealRepository
-from backend.app.models.meal_logs import MealLog
+from backend.app.models.meal_log_model import MealLog
 from backend.app.models.vision_api_call import VisionApiCalls
 
 class MealController:
