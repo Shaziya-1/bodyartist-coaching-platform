@@ -25,13 +25,13 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
 
   // State initialization
   const [waterLogged, setWaterLogged] = useState<number>(3);
-  const waterTarget = 8;
-  const [mealsTarget] = useState<number>(5);
+  const [waterTarget, setWaterTarget] = useState<number>(8);
+  const [mealsTarget, setMealsTarget] = useState<number>(5);
   
   const [stepsLogged, setStepsLogged] = useState<number>(6000);
-  const stepsTarget = 10000;
+  const [stepsTarget, setStepsTarget] = useState<number>(10000);
   const [cardioLogged, setCardioLogged] = useState<number>(15);
-  const cardioTarget = 30;
+  const [cardioTarget, setCardioTarget] = useState<number>(30);
   const [weight, setWeight] = useState<number>(82.4);
 
   const [supplements, setSupplements] = useState([
@@ -39,6 +39,9 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
     { id: '2', name: 'Omega 3 Fish Oil', completed: false, required: true },
     { id: '3', name: 'Multivitamin Formula', completed: true, required: true },
   ]);
+
+  const [targetMacros, setTargetMacros] = useState({ p: 200, c: 250, f: 75, cal: 2475 });
+
 
   const [meals, setMeals] = useState([
     { id: '1', time: '08:30', food: 'Oatmeal with Protein & Berries', macros: { p: 32, f: 6, c: 45 }, calories: 362, photo: null as string | null, confidence: 91, isEdited: false },
@@ -72,6 +75,84 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
       }
     }
   }, [storageKey]);
+
+  // Load from database if athlete is authenticated
+  useEffect(() => {
+    if (!id) return;
+
+    // 1. Fetch Diet Plan Targets
+    fetch(`http://localhost:8000/api/v1/athlete/targets/${id}`)
+      .then(res => {
+        if (!res.ok) throw new Error('Targets not found');
+        return res.json();
+      })
+      .then(data => {
+        if (data) {
+          setMealsTarget(data.target_meals || 5);
+          setWaterTarget(data.water_target || 8);
+          setStepsTarget(data.steps_target || 10000);
+          setCardioTarget(data.cardio_target || 30);
+          
+          if (Array.isArray(data.target_macros)) {
+            let p = 0, c = 0, f = 0;
+            data.target_macros.forEach((m: any) => {
+              const name = m.name?.toLowerCase();
+              if (name === 'protein') p = m.value;
+              else if (name === 'carbs') c = m.value;
+              else if (name === 'fat') f = m.value;
+            });
+            const cal = p * 4 + c * 4 + f * 9;
+            setTargetMacros({ p, c, f, cal });
+          }
+
+          if (Array.isArray(data.supplement_checklist)) {
+            setSupplements(prevSupps => {
+              return data.supplement_checklist.map((s: any, idx: number) => {
+                const existing = prevSupps.find(p => p.name.toLowerCase() === s.name.toLowerCase());
+                return {
+                  id: (idx + 1).toString(),
+                  name: s.name,
+                  completed: existing ? existing.completed : false,
+                  required: s.required
+                };
+              });
+            });
+          }
+        }
+      })
+      .catch(err => console.warn('Could not fetch diet targets from server:', err));
+
+    // 2. Fetch today's meal logs from the database
+    fetch(`http://localhost:8000/api/v1/meals/today/${id}`)
+      .then(res => {
+        if (!res.ok) throw new Error('Meal logs not found');
+        return res.json();
+      })
+      .then(data => {
+        if (data && Array.isArray(data.meals)) {
+          const mappedMeals = data.meals.map((m: any, idx: number) => {
+            const macros = m.confirmed_macros || {};
+            return {
+              id: m.id || (idx + 1).toString(),
+              time: new Date(m.logged_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+              food: m.raw_food_log || 'Unknown Meal',
+              macros: {
+                p: macros.protein || 0,
+                c: macros.carbs || 0,
+                f: macros.fat || 0
+              },
+              calories: macros.calories || 0,
+              photo: m.photo_url || null,
+              confidence: Math.round((m.confidence_score || 0) * 100),
+              isEdited: macros.is_edited || false
+            };
+          });
+          setMeals(mappedMeals);
+        }
+      })
+      .catch(err => console.warn('Could not fetch meal logs from server:', err));
+
+  }, [id]);
 
   // Save to localStorage helper
   const saveTelemetry = (updates: any) => {
@@ -121,9 +202,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
     return { totalScore, status };
   }, [mealsLogged, mealsTarget, supplements, waterLogged, waterTarget, stepsLogged, stepsTarget, cardioLogged, cardioTarget]);
 
-  // Target Macro configuration (for comparison warnings)
-  const targetMacros = { p: 200, c: 250, f: 75, cal: 2475 };
-  
   // Accumulated totals
   const totalMacros = useMemo(() => {
     return meals.reduce((sum, m) => ({
@@ -465,6 +543,65 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
                 }`}>
                   {mealsLogged}/{mealsTarget} meals
                 </span>
+              </div>
+              
+              {/* Daily Macros Progress Tracker */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-2xl bg-card/25 border border-card-border/60 mb-6">
+                {/* Calories */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] uppercase font-bold tracking-wider">
+                    <span className="text-white">Calories</span>
+                    <span className="text-muted-foreground">{totalMacros.cal} / {targetMacros.cal} kcal</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-card rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-white transition-all duration-500"
+                      style={{ width: `${Math.min(100, (totalMacros.cal / (targetMacros.cal || 1)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Protein */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] uppercase font-bold tracking-wider">
+                    <span className="text-primary">Protein</span>
+                    <span className="text-muted-foreground">{totalMacros.p} / {targetMacros.p}g</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-card rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-500"
+                      style={{ width: `${Math.min(100, (totalMacros.p / (targetMacros.p || 1)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Carbs */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] uppercase font-bold tracking-wider">
+                    <span className="text-status-yellow">Carbs</span>
+                    <span className="text-muted-foreground">{totalMacros.c} / {targetMacros.c}g</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-card rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-status-yellow transition-all duration-500"
+                      style={{ width: `${Math.min(100, (totalMacros.c / (targetMacros.c || 1)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Fat */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] uppercase font-bold tracking-wider">
+                    <span className="text-status-orange">Fat</span>
+                    <span className="text-muted-foreground">{totalMacros.f} / {targetMacros.f}g</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-card rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-status-orange transition-all duration-500"
+                      style={{ width: `${Math.min(100, (totalMacros.f / (targetMacros.f || 1)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Meals Feed */}
