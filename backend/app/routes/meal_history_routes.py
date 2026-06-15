@@ -15,3 +15,10 @@ router = APIRouter(
 def get_meal_history(athlete_id: UUID, db: Session = Depends(get_db)):
     service = MealHistoryService(db)
     return service.get_meal_history(athlete_id)
+
+
+@router.get("/today/{athlete_id}", response_model=MealHistoryResponse, status_code=status.HTTP_200_OK)
+def get_today_meals(athlete_id: UUID, db: Session = Depends(get_db)):
+    service = MealHistoryService(db)
+    return service.get_today_meals(athlete_id)
+

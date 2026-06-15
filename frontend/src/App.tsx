@@ -7,6 +7,7 @@ import { HomePortal } from './pages/HomePortal';
 import { CoachAuth } from './pages/CoachAuth';
 import { AthleteAuth } from './pages/AthleteAuth';
 import { CoachDashboard } from './pages/CoachDashboard';
+import { CoachAthleteDetail } from './pages/CoachAthleteDetail';
 import { AthleteDashboard } from './pages/AthleteDashboard';
 import { ConsentModal } from './components/ConsentModal';
 import { useAuthStore } from './store/useAuthStore';
@@ -35,7 +36,6 @@ function MainApp() {
 
   const [showConsentModal, setShowConsentModal] = useState<boolean>(false);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null);
 
   // Fetch athletes for coach dashboard
   React.useEffect(() => {
@@ -77,7 +77,6 @@ function MainApp() {
 
   const handleLogout = () => {
     useAuthStore.getState().clearAuth();
-    setSelectedAthlete(null);
   };
 
   return (
@@ -105,8 +104,20 @@ function MainApp() {
             role === 'coach' ? (
               <CoachDashboard
                 athletes={athletes}
-                selectedAthlete={selectedAthlete}
-                onSelectAthlete={setSelectedAthlete}
+                onLogout={handleLogout}
+              />
+            ) : (
+              <Navigate to="/coach/signin" replace />
+            )
+          }
+        />
+
+        {/* Coach Athlete Detail Route */}
+        <Route
+          path="/coach/athlete/:athleteId"
+          element={
+            role === 'coach' ? (
+              <CoachAthleteDetail
                 onLogout={handleLogout}
               />
             ) : (

@@ -19,3 +19,15 @@ class MealHistoryService:
             total_meals=len(meal_items),
             meals=meal_items
         )
+
+    def get_today_meals(self, athlete_id: UUID) -> MealHistoryResponse:
+        meals = self.repository.get_today_athlete_meals_desc(self.db, athlete_id)
+        
+        meal_items = [MealLogItem.model_validate(meal) for meal in meals]
+        
+        return MealHistoryResponse(
+            athlete_id=athlete_id,
+            total_meals=len(meal_items),
+            meals=meal_items
+        )
+

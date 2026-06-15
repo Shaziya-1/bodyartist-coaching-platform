@@ -37,6 +37,9 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
     { id: '3', name: 'Multivitamin Formula', completed: true, required: true },
   ]);
 
+  const [targetMacros] = useState({ p: 200, c: 250, f: 75, cal: 2475 });
+
+
   const [meals, setMeals] = useState([
     { id: '1', time: '08:30', food: 'Oatmeal with Protein & Berries', macros: { p: 32, f: 6, c: 45 }, calories: 362, photo: null as string | null, confidence: 91, isEdited: false },
     { id: '2', time: '14:15', food: 'Grilled Chicken Breast & Rice', macros: { p: 48, f: 8, c: 52 }, calories: 472, photo: null as string | null, confidence: 85, isEdited: false },
@@ -113,6 +116,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
       } catch (err) {
         console.error('Failed to load dashboard data', err);
       }
+
     };
     loadDashboard();
   }, [id]);
@@ -181,9 +185,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
     return { totalScore, status };
   }, [mealsLogged, mealsTarget, supplements, waterLogged, waterTarget, stepsLogged, stepsTarget, cardioLogged, cardioTarget]);
 
-  // Target Macro configuration (for comparison warnings)
-  const targetMacros = { p: 200, c: 250, f: 75, cal: 2475 };
-  
   // Accumulated totals
   const totalMacros = useMemo(() => {
     return meals.reduce((sum, m) => ({
@@ -504,6 +505,65 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({ onLogout }) 
                 }`}>
                   {mealsLogged}/{mealsTarget} meals
                 </span>
+              </div>
+              
+              {/* Daily Macros Progress Tracker */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-2xl bg-card/25 border border-card-border/60 mb-6">
+                {/* Calories */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] uppercase font-bold tracking-wider">
+                    <span className="text-white">Calories</span>
+                    <span className="text-muted-foreground">{totalMacros.cal} / {targetMacros.cal} kcal</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-card rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-white transition-all duration-500"
+                      style={{ width: `${Math.min(100, (totalMacros.cal / (targetMacros.cal || 1)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Protein */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] uppercase font-bold tracking-wider">
+                    <span className="text-primary">Protein</span>
+                    <span className="text-muted-foreground">{totalMacros.p} / {targetMacros.p}g</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-card rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-500"
+                      style={{ width: `${Math.min(100, (totalMacros.p / (targetMacros.p || 1)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Carbs */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] uppercase font-bold tracking-wider">
+                    <span className="text-status-yellow">Carbs</span>
+                    <span className="text-muted-foreground">{totalMacros.c} / {targetMacros.c}g</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-card rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-status-yellow transition-all duration-500"
+                      style={{ width: `${Math.min(100, (totalMacros.c / (targetMacros.c || 1)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Fat */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] uppercase font-bold tracking-wider">
+                    <span className="text-status-orange">Fat</span>
+                    <span className="text-muted-foreground">{totalMacros.f} / {targetMacros.f}g</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-card rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-status-orange transition-all duration-500"
+                      style={{ width: `${Math.min(100, (totalMacros.f / (targetMacros.f || 1)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Meals Feed */}

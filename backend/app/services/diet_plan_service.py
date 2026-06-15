@@ -25,8 +25,11 @@ class DietPlanService:
 
     def update_diet_plan(self, athlete_id: UUID, data: DietPlanUpdate) -> DietPlan:
         existing_plan = self.repository.get_by_athlete_id(self.db, athlete_id)
-        if not existing_plan:
-            raise HTTPException(status_code=404, detail="Diet plan not found for this athlete.")
-            
         update_data = data.model_dump(exclude_unset=True)
+        
+        if not existing_plan:
+            db_data = {"athlete_id": athlete_id, **update_data}
+            diet_plan = DietPlan(**db_data)
+            return self.repository.save(self.db, diet_plan)
+            
         return self.repository.update(self.db, athlete_id, update_data)
