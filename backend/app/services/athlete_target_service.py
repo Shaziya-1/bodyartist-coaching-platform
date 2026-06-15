@@ -12,7 +12,47 @@ class AthleteTargetService:
 
     def get_athlete_targets(self, athlete_id: UUID) -> AthleteTargetResponse:
         diet_plan = self.repository.get_by_athlete_id(self.db, athlete_id)
+        
         if not diet_plan:
-            raise HTTPException(status_code=404, detail="Diet plan targets not found for this athlete.")
+            data = {
+                "athlete_id": athlete_id,
+                "meals_target": 5,
+                "water_target": 8,
+                "steps_target": 10000,
+                "cardio_target": 30,
+                "tolerance_percent": 0,
+                "target_macros": [
+                    {"name": "Protein", "value": 200.0, "unit": "g"},
+                    {"name": "Carbs", "value": 250.0, "unit": "g"},
+                    {"name": "Fat", "value": 75.0, "unit": "g"}
+                ],
+                "supplement_checklist": [
+                    {"name": "Creatine Monohydrate", "completed": False, "required": True},
+                    {"name": "Omega 3 Fish Oil", "completed": False, "required": True},
+                    {"name": "Multivitamin Formula", "completed": False, "required": True}
+                ]
+            }
+            return AthleteTargetResponse.model_validate(data)
             
-        return AthleteTargetResponse.model_validate(diet_plan)
+        # Safe normalization for target_macros format (dict vs list)
+        db_macros = diet_plan.target_macros
+        if isinstance(db_macros, dict):
+            normalized_macros = [{"name": k.capitalize(), "value": v, "unit": "g"} for k, v in db_macros.items()]
+        elif isinstance(db_macros, list):
+            normalized_macros = db_macros
+        else:
+            normalized_macros = []
+            
+        data = {
+            "athlete_id": diet_plan.athlete_id,
+            "meals_target": diet_plan.meals_target,
+            "water_target": diet_plan.water_target,
+            "steps_target": diet_plan.steps_target,
+            "cardio_target": diet_plan.cardio_target,
+            "tolerance_percent": diet_plan.tolerance_percent,
+            "target_macros": normalized_macros,
+            "supplement_checklist": diet_plan.supplement_checklist or []
+        }
+        return AthleteTargetResponse.model_validate(data)
+
+
