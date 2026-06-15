@@ -1,6 +1,7 @@
 from pydantic import BaseModel, UUID4
 from typing import List, Optional, Dict, Any
 
+
 class DashboardSummaryResponse(BaseModel):
     athlete_id: UUID4
     water_logged: int
@@ -8,10 +9,12 @@ class DashboardSummaryResponse(BaseModel):
     supplements_total: int
     current_streak: int
 
+
 class SupplementDetail(BaseModel):
     name: str
     completed: bool
     required: bool
+
 
 class MealHistoryDetail(BaseModel):
     id: str
@@ -23,13 +26,16 @@ class MealHistoryDetail(BaseModel):
     confidence: int
     isEdited: bool
 
+
 class ChartPoint(BaseModel):
     date: str
     value: float
 
+
 class HeatmapPoint(BaseModel):
     date: str
     score: int
+
 
 class AthleteDetailResponse(BaseModel):
     id: UUID4
@@ -48,9 +54,10 @@ class AthleteDetailResponse(BaseModel):
     weightHistory: List[ChartPoint]
     waterHistory: List[ChartPoint]
     heatmapData: List[HeatmapPoint]
-    
+
     # Target configurations
     dietMealsTarget: int
     dietWaterTarget: int
     dietStepsTarget: int
     dietCardioTarget: int
+    dietTargetMacros: List[Dict[str, Any]]

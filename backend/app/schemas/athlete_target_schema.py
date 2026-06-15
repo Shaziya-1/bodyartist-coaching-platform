@@ -14,7 +14,7 @@ class AthleteTargetResponse(BaseModel):
     steps_target: int
     cardio_target: int
     tolerance_percent: int
-    target_macros: TargetMacros
+    target_macros: List[Dict[str, Any]]
     supplement_checklist: List[Dict[str, Any]]
 
     class Config:
