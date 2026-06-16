@@ -4,9 +4,11 @@ interface HeatmapProps {
   scores: { date: string; score: number }[]; // Last 12 weeks of daily scores
   athleteName?: string;
   compact?: boolean;
+  onCellClick?: (date: string) => void;
+  selectedDate?: string;
 }
 
-export const AdherenceHeatmap: React.FC<HeatmapProps> = ({ scores, athleteName, compact = false }) => {
+export const AdherenceHeatmap: React.FC<HeatmapProps> = ({ scores, athleteName, compact = false, onCellClick, selectedDate }) => {
   // Generate heatmap cells (Last 12 weeks = 84 days) for a cleaner dashboard display
   const heatmapData = useMemo(() => {
     const cells: { date: string; score: number | null }[] = [];
@@ -64,18 +66,24 @@ export const AdherenceHeatmap: React.FC<HeatmapProps> = ({ scores, athleteName, 
               gridAutoColumns: 'minmax(0, 1fr)'
             }}
           >
-            {heatmapData.map((cell, idx) => (
-              <div
-                key={idx}
-                className={`w-3.5 h-3.5 rounded-sm border transition-all duration-200 cursor-pointer hover:scale-115 relative group ${getColorClass(cell.score)}`}
-              >
-                {/* Custom Tooltip */}
-                <div className="pointer-events-none opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-card border border-card-border/80 text-[10px] font-semibold text-white rounded-xl whitespace-nowrap shadow-xl z-50 transition-opacity duration-200">
-                  <span className="block font-bold">{cell.date}</span>
-                  <span className="block text-primary">Score: {cell.score !== null ? `${cell.score}%` : 'No Log'}</span>
+            {heatmapData.map((cell, idx) => {
+              const isSelected = cell.date === selectedDate;
+              return (
+                <div
+                  key={idx}
+                  onClick={() => onCellClick && onCellClick(cell.date)}
+                  className={`w-3.5 h-3.5 rounded-sm border transition-all duration-200 cursor-pointer hover:scale-115 relative group ${getColorClass(cell.score)} ${
+                    isSelected ? 'ring-2 ring-white scale-110 shadow-[0_0_8px_rgba(255,255,255,0.5)] z-10' : ''
+                  }`}
+                >
+                  {/* Custom Tooltip */}
+                  <div className="pointer-events-none opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-card border border-card-border/80 text-[10px] font-semibold text-white rounded-xl whitespace-nowrap shadow-xl z-50 transition-opacity duration-200">
+                    <span className="block font-bold">{cell.date}</span>
+                    <span className="block text-primary">Score: {cell.score !== null ? `${cell.score}%` : 'No Log'}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

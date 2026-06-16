@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Plus,
   ShieldCheck,
+  Droplet,
 } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { AdherenceHeatmap } from "../components/AdherenceHeatmap";
@@ -66,6 +67,8 @@ interface AthleteDetail {
   dietStepsTarget: number;
   dietCardioTarget: number;
   dietTargetMacros: { name: string; value: number; unit: string }[];
+  stepsLogged: number;
+  cardioLogged: number;
 }
 
 interface CoachAthleteDetailProps {
@@ -81,6 +84,15 @@ export const CoachAthleteDetail: React.FC<CoachAthleteDetailProps> = ({
   const [athlete, setAthlete] = useState<AthleteDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
+
+  const getTodayStr = () => {
+    const d = new Date();
+    const offset = d.getTimezoneOffset();
+    const localDate = new Date(d.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().split("T")[0];
+  };
+
+  const [selectedDate, setSelectedDate] = useState<string>(() => getTodayStr());
 
   // Target Config Form States
   const [dietMealsTarget, setDietMealsTarget] = useState<number>(5);
@@ -99,13 +111,14 @@ export const CoachAthleteDetail: React.FC<CoachAthleteDetailProps> = ({
   const [saveLoading, setSaveLoading] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 
-  const fetchAthleteDetail = async () => {
+  const fetchAthleteDetail = async (dateStr?: string) => {
     try {
       setLoading(true);
       setError("");
-      const res = await fetch(
-        `http://localhost:8000/api/v1/athlete/coach-detail/${athleteId}`,
-      );
+      const url = dateStr
+        ? `http://localhost:8000/api/v1/athlete/coach-detail/${athleteId}?log_date=${dateStr}`
+        : `http://localhost:8000/api/v1/athlete/coach-detail/${athleteId}`;
+      const res = await fetch(url);
       if (!res.ok) {
         throw new Error("Failed to load athlete profile");
       }
@@ -136,9 +149,9 @@ export const CoachAthleteDetail: React.FC<CoachAthleteDetailProps> = ({
 
   useEffect(() => {
     if (athleteId) {
-      fetchAthleteDetail();
+      fetchAthleteDetail(selectedDate);
     }
-  }, [athleteId]);
+  }, [athleteId, selectedDate]);
 
   const handleAddSupp = () => {
     if (!newSuppName.trim()) return;
@@ -298,12 +311,81 @@ export const CoachAthleteDetail: React.FC<CoachAthleteDetailProps> = ({
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8 relative z-10 space-y-8">
+        {/* Date Selector & History Banner */}
+        <div className="glass-panel p-5 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6 border border-card-border/50 bg-gradient-to-r from-card/30 via-transparent to-transparent backdrop-blur-xl">
+          <div className="flex items-center gap-4 text-left w-full md:w-auto">
+            <div className="p-3 bg-primary/10 rounded-2xl text-primary border border-primary/20">
+              <Activity className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-extrabold">Adherence History Log</p>
+              <h3 className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
+                {selectedDate === getTodayStr() ? (
+                  <span className="flex items-center gap-1.5">
+                    Today <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  </span>
+                ) : (
+                  new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
+                    weekday: "long",
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric"
+                  })
+                )}
+              </h3>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 w-full md:w-auto flex-wrap sm:flex-nowrap">
+            <button
+              onClick={() => {
+                const current = new Date(selectedDate + "T00:00:00");
+                current.setDate(current.getDate() - 1);
+                setSelectedDate(current.toISOString().split("T")[0]);
+              }}
+              className="px-4 py-3 bg-card border border-card-border hover:border-white/10 hover:bg-card/60 text-white text-xs font-black rounded-2xl transition-all cursor-pointer flex-1 sm:flex-none text-center"
+            >
+              ← Prev Day
+            </button>
+            
+            <div className="relative flex-1 sm:flex-none">
+              <input
+                type="date"
+                value={selectedDate}
+                max={getTodayStr()}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedDate(e.target.value);
+                  }
+                }}
+                className="w-full px-5 py-2.5 bg-card border border-card-border rounded-2xl text-xs text-white font-extrabold focus:outline-none focus:border-primary cursor-pointer hover:border-white/10 select-none appearance-none"
+              />
+            </div>
+
+            <button
+              onClick={() => {
+                const todayStr = getTodayStr();
+                if (selectedDate === todayStr) return;
+                const current = new Date(selectedDate + "T00:00:00");
+                current.setDate(current.getDate() + 1);
+                setSelectedDate(current.toISOString().split("T")[0]);
+              }}
+              disabled={selectedDate === getTodayStr()}
+              className={`px-4 py-3 bg-card border border-card-border hover:border-white/10 hover:bg-card/60 text-white text-xs font-black rounded-2xl transition-all cursor-pointer flex-1 sm:flex-none text-center ${
+                selectedDate === getTodayStr() ? "opacity-40 cursor-not-allowed border-transparent" : ""
+              }`}
+            >
+              Next Day →
+            </button>
+          </div>
+        </div>
+
         {/* Key metrics grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Today's Score */}
           <div className="glass-panel p-6 rounded-3xl flex flex-col justify-between min-h-[120px]">
             <p className="text-[10px] text-muted-foreground font-extrabold uppercase tracking-wider mb-2">
-              Today's Score
+              Adherence Score
             </p>
             <div className="flex items-baseline gap-2">
               <span className="text-4xl font-black text-white">
@@ -581,6 +663,8 @@ export const CoachAthleteDetail: React.FC<CoachAthleteDetailProps> = ({
             <AdherenceHeatmap
               scores={athlete.heatmapData}
               athleteName={athlete.name}
+              selectedDate={selectedDate}
+              onCellClick={(date) => setSelectedDate(date)}
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -602,80 +686,204 @@ export const CoachAthleteDetail: React.FC<CoachAthleteDetailProps> = ({
           </div>
         </div>
 
-        {/* Meals logs feed timeline */}
-        <div className="glass-panel p-6 rounded-3xl">
-          <div className="mb-6">
-            <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">
-              Adherence Meal History Timeline
-            </h3>
-            <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">
-              Chronological feed of athlete uploaded meals
-            </p>
-          </div>
+        {/* Daily Compliance Audit & Meal History Timeline */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Daily Activity Audit (takes 1 column) */}
+          <div className="glass-panel p-6 rounded-3xl lg:col-span-1 space-y-6 flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">
+                Daily Compliance Audit
+              </h3>
+              <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">
+                Physical telemetry and checkoff log
+              </p>
+            </div>
 
-          {athlete.mealHistory && athlete.mealHistory.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {athlete.mealHistory.map((meal) => (
-                <div
-                  key={meal.id}
-                  className="p-4 rounded-2xl bg-card/30 border border-card-border hover:border-white/10 transition-all flex gap-4"
-                >
-                  {meal.photo ? (
-                    <img
-                      src={meal.photo}
-                      alt={meal.food}
-                      className="w-20 h-20 rounded-xl object-cover border border-card-border flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-20 h-20 rounded-xl bg-card border border-card-border flex items-center justify-center text-3xl flex-shrink-0">
-                      🍳
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-white text-sm truncate">
-                          {meal.food}
-                        </h4>
-                        {meal.isEdited && (
-                          <span className="text-[8px] bg-primary/10 border border-primary/20 text-primary font-black px-1.5 rounded uppercase">
-                            Edited
+            <div className="space-y-5 flex-1 pt-2">
+              {/* Hydration Audit */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs font-bold">
+                  <span className="text-white flex items-center gap-1.5">
+                    <Droplet className="w-4 h-4 text-status-yellow fill-status-yellow/10" />
+                    Water Intake
+                  </span>
+                  <span className="text-muted-foreground text-[10px]">
+                    {athlete.waterLog} / {athlete.waterTarget} glasses
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-card rounded-full overflow-hidden border border-card-border/50">
+                  <div
+                    className="h-full bg-status-yellow transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, (athlete.waterLog / (athlete.waterTarget || 1)) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Steps Audit */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs font-bold">
+                  <span className="text-white flex items-center gap-1.5">
+                    <Activity className="w-4 h-4 text-primary" />
+                    Steps Tracked
+                  </span>
+                  <span className="text-muted-foreground text-[10px]">
+                    {athlete.stepsLogged?.toLocaleString() || 0} / {athlete.dietStepsTarget?.toLocaleString() || 10000}
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-card rounded-full overflow-hidden border border-card-border/50">
+                  <div
+                    className="h-full bg-primary transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, (athlete.stepsLogged / (athlete.dietStepsTarget || 1)) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Cardio Audit */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs font-bold">
+                  <span className="text-white flex items-center gap-1.5">
+                    <Flame className="w-4 h-4 text-status-orange" />
+                    Cardio Duration
+                  </span>
+                  <span className="text-muted-foreground text-[10px]">
+                    {athlete.cardioLogged || 0} / {athlete.dietCardioTarget || 30} mins
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-card rounded-full overflow-hidden border border-card-border/50">
+                  <div
+                    className="h-full bg-status-orange transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, (athlete.cardioLogged / (athlete.dietCardioTarget || 1)) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Supplement checklist audit */}
+              <div className="space-y-3 pt-3 border-t border-card-border/60">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-extrabold block">
+                  Supplements Checkoffs
+                </span>
+
+                <div className="space-y-2.5 max-h-[160px] overflow-y-auto pr-1">
+                  {athlete.supplements && athlete.supplements.length > 0 ? (
+                    athlete.supplements.map((supp, sIdx) => (
+                      <div
+                        key={sIdx}
+                        className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                          supp.completed
+                            ? "bg-status-green/5 border-status-green/20 text-status-green"
+                            : "bg-card/20 border-card-border text-muted-foreground"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {supp.completed ? (
+                            <CheckCircle className="w-4 h-4 text-status-green flex-shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-muted-foreground/50 flex-shrink-0" />
+                          )}
+                          <span className={`truncate ${supp.completed ? "line-through text-status-green" : "text-white"}`}>
+                            {supp.name}
+                          </span>
+                        </div>
+                        {supp.required && (
+                          <span className={`text-[8px] px-1.5 py-0.5 rounded font-black uppercase flex-shrink-0 ${
+                            supp.completed ? "bg-status-green/15 text-status-green border border-status-green/25" : "bg-primary/20 text-primary border border-primary/25"
+                          }`}>
+                            Required
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">
-                        {meal.time} • Confidence: {meal.confidence}%
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs font-extrabold mt-3">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-primary">
-                          P: {meal.macros.p}g
-                        </span>
-                        <span className="text-status-yellow">
-                          C: {meal.macros.c}g
-                        </span>
-                        <span className="text-status-orange">
-                          F: {meal.macros.f}g
-                        </span>
-                      </div>
-                      <span className="text-white bg-card border border-card-border px-2 py-0.5 rounded-md text-[10px]">
-                        {meal.calories} kcal
-                      </span>
-                    </div>
-                  </div>
+                    ))
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground italic text-center py-2">
+                      No supplements configured.
+                    </p>
+                  )}
                 </div>
-              ))}
+              </div>
             </div>
-          ) : (
-            <div className="py-10 text-center">
-              <Users className="w-10 h-10 text-muted-foreground/45 mx-auto mb-3" />
-              <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">
-                No meal records found for today.
+          </div>
+
+          {/* Meals logs feed timeline (takes 2 columns) */}
+          <div className="glass-panel p-6 rounded-3xl lg:col-span-2 space-y-6">
+            <div>
+              <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">
+                Adherence Meal History Timeline
+              </h3>
+              <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">
+                Chronological feed of athlete uploaded meals
               </p>
             </div>
-          )}
+
+            {athlete.mealHistory && athlete.mealHistory.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {athlete.mealHistory.map((meal) => (
+                  <div
+                    key={meal.id}
+                    className="p-4 rounded-2xl bg-card/30 border border-card-border hover:border-white/10 transition-all flex gap-4"
+                  >
+                    {meal.photo ? (
+                      <img
+                        src={meal.photo}
+                        alt={meal.food}
+                        className="w-20 h-20 rounded-xl object-cover border border-card-border flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-xl bg-card border border-card-border flex items-center justify-center text-3xl flex-shrink-0">
+                        🍳
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-white text-sm truncate">
+                            {meal.food}
+                          </h4>
+                          {meal.isEdited && (
+                            <span className="text-[8px] bg-primary/10 border border-primary/20 text-primary font-black px-1.5 rounded uppercase">
+                              Edited
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">
+                          {meal.time} • Confidence: {meal.confidence}%
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs font-extrabold mt-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-primary">
+                            P: {meal.macros.p}g
+                          </span>
+                          <span className="text-status-yellow">
+                            C: {meal.macros.c}g
+                          </span>
+                          <span className="text-status-orange">
+                            F: {meal.macros.f}g
+                          </span>
+                        </div>
+                        <span className="text-white bg-card border border-card-border px-2 py-0.5 rounded-md text-[10px]">
+                          {meal.calories} kcal
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-10 text-center my-auto">
+                <Users className="w-10 h-10 text-muted-foreground/45 mx-auto mb-3" />
+                <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">
+                  No meal records found for this date.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>
