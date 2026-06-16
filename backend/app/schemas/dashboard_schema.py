@@ -54,6 +54,8 @@ class AthleteDetailResponse(BaseModel):
     weightHistory: List[ChartPoint]
     waterHistory: List[ChartPoint]
     heatmapData: List[HeatmapPoint]
+    stepsLogged: int
+    cardioLogged: int
 
     # Target configurations
     dietMealsTarget: int

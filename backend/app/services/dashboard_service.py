@@ -59,7 +59,7 @@ class DashboardService:
             current_streak=current_streak,
         )
 
-    def get_coach_athlete_detail(self, athlete_id: UUID) -> AthleteDetailResponse:
+    def get_coach_athlete_detail(self, athlete_id: UUID, log_date: date = None) -> AthleteDetailResponse:
         from backend.app.repositories.user_repository import UserRepository
         from backend.app.models.meal_log_model import MealLog
         from sqlalchemy import cast, Date
@@ -69,7 +69,8 @@ class DashboardService:
         if not athlete or athlete.role != "athlete":
             raise HTTPException(status_code=404, detail="Athlete not found")
 
-        today = date.today()
+        current_today = date.today()
+        today = log_date if log_date is not None else current_today
 
         # 2. Fetch diet plan targets
         diet_plan = self.diet_plan_repo.get_by_athlete_id(self.db, athlete_id)
@@ -272,7 +273,7 @@ class DashboardService:
         # 10. Get heatmap compliance for the last 30 calendar days
         heatmap_data = []
         for i in range(29, -1, -1):
-            check_date = today - timedelta(days=i)
+            check_date = current_today - timedelta(days=i)
             found_log = next((l for l in past_logs if l.log_date == check_date), None)
             score_val = found_log.score if found_log else 0
             heatmap_data.append(
@@ -296,6 +297,8 @@ class DashboardService:
             weightHistory=weight_history,
             waterHistory=water_history,
             heatmapData=heatmap_data,
+            stepsLogged=steps_logged,
+            cardioLogged=cardio_logged,
             dietMealsTarget=meals_target,
             dietWaterTarget=water_target,
             dietStepsTarget=steps_target,
