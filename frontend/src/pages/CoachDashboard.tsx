@@ -55,7 +55,11 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
               status: summary.status || 'red',
               weight: summary.weight || athlete.weight,
               waterLog: summary.water_logged || 0,
-              streak: summary.streak || athlete.streak
+              streak: summary.streak || athlete.streak,
+              mealsLogged: summary.meals_logged || 0,
+              mealsTarget: summary.meals_target || 5,
+              supplementsCompleted: summary.supplements_completed || 0,
+              supplementsRequired: summary.supplements_total || 0
             };
           } catch (e) {
             return athlete;

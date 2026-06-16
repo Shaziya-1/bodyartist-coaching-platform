@@ -99,27 +99,73 @@ export const CoachAthleteDetail: React.FC<CoachAthleteDetailProps> = ({
     try {
       setLoading(true);
       setError("");
-      const res = await fetch(
+
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      // 1. Fetch base profile info first
+      const profileRes = await fetch(
         `http://localhost:8000/api/v1/athlete/coach-detail/${athleteId}`,
       );
-      if (!res.ok) {
+      if (!profileRes.ok) {
         throw new Error("Failed to load athlete profile");
       }
-      const data: AthleteDetail = await res.json();
-      setAthlete(data);
+      const profileData: AthleteDetail = await profileRes.json();
+
+      // 2. Fetch all daily trackers for synchronization
+      const [targets, summary, mealsRes] = await Promise.all<any>([
+        fetch(`http://localhost:8000/api/v1/athlete/targets/${athleteId}`).then(res => res.ok ? res.json() : {}),
+        fetch(`http://localhost:8000/api/v1/athlete/dashboard-summary/${athleteId}`).then(res => res.ok ? res.json() : {}),
+        fetch(`http://localhost:8000/api/v1/meals/today/${athleteId}`).then(res => res.ok ? res.json() : { meals: [] }),
+        fetch(`http://localhost:8000/api/v1/athlete/history-timeline/${athleteId}?start_date=${todayStr}&end_date=${todayStr}`).then(res => res.ok ? res.json() : [])
+      ]);
+
+      // 3. Construct synchronized athlete data
+      const syncedData: AthleteDetail = {
+        ...profileData,
+        // Override with live telemetry to sync with Athlete Dashboard
+        score: summary.score ?? profileData.score,
+        waterLog: summary.water_logged || 0,
+        waterTarget: targets.water_target || 8,
+        mealsLogged: mealsRes?.meals?.length || 0,
+        mealsTarget: targets.meals_target || 5,
+        dietMealsTarget: targets.meals_target || 5,
+        dietWaterTarget: targets.water_target || 8,
+        dietStepsTarget: targets.steps_target || 10000,
+        dietCardioTarget: targets.cardio_target || 30,
+        dietTargetMacros: (() => {
+           if (Array.isArray(targets.target_macros)) {
+              return targets.target_macros;
+           } else if (typeof targets.target_macros === 'object' && targets.target_macros !== null) {
+              return Object.entries(targets.target_macros).map(([k, v]) => ({ name: k.charAt(0).toUpperCase() + k.slice(1), value: Number(v), unit: "g" }));
+           }
+           return [
+             { name: 'Protein', value: 200, unit: 'g' },
+             { name: 'Carbs', value: 250, unit: 'g' },
+             { name: 'Fat', value: 75, unit: 'g' }
+           ];
+        })()
+      };
+
+      // Supps 
+      if (targets.supplement_checklist && Array.isArray(targets.supplement_checklist)) {
+         const checkedIds = summary.supplement_checkoffs?.map((s: any) => s.id) || [];
+         syncedData.supplements = targets.supplement_checklist.map((s: any) => ({
+           ...s,
+           completed: checkedIds.includes(s.id)
+         }));
+      }
+
+      setAthlete(syncedData);
 
       // Initialize form fields
-      setDietMealsTarget(data.dietMealsTarget);
-      setDietWaterTarget(data.dietWaterTarget);
-      setDietStepsTarget(data.dietStepsTarget);
-      setDietCardioTarget(data.dietCardioTarget);
-      setMacrosList(data.dietTargetMacros || [
-        { name: 'Protein', value: 200, unit: 'g' },
-        { name: 'Carbs', value: 250, unit: 'g' },
-        { name: 'Fat', value: 75, unit: 'g' }
-      ]);
+      setDietMealsTarget(syncedData.dietMealsTarget);
+      setDietWaterTarget(syncedData.dietWaterTarget);
+      setDietStepsTarget(syncedData.dietStepsTarget);
+      setDietCardioTarget(syncedData.dietCardioTarget);
+      setMacrosList(syncedData.dietTargetMacros);
+      
       setSuppsList(
-        data.supplements.map((s) => ({ name: s.name, required: s.required })),
+        syncedData.supplements.map((s) => ({ name: s.name, required: s.required })),
       );
     } catch (err: any) {
       setError(
